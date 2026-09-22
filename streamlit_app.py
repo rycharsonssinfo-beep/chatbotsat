@@ -1,7 +1,6 @@
 import os
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import pypdf
 import chromadb
 from chromadb.utils import embedding_functions
@@ -14,27 +13,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicialização segura do cliente Gemini compatível com o token AQ.
+# Inicialização segura do Gemini compatível com o token AQ.
 @st.cache_resource
-def get_gemini_client():
+def configurar_gemini():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("A chave GEMINI_API_KEY não foi configurada nos Secrets do Streamlit.")
         st.stop()
     
-    # Define a chave no ambiente para captação automática
-    os.environ["GEMINI_API_KEY"] = api_key
-    
-    # Para chaves com o padrão AQ. (Enterprise / Google Cloud Project), 
-    # inicializamos o cliente utilizando o modo enterprise com o projeto correspondente
-    try:
-        # Tenta inicializar no modo padrão corporativo suportado por esse tipo de token
-        return genai.Client(enterprise=True, project="gen-lang-client-0357902878", location="us-central1")
-    except Exception:
-        # Fallback para o cliente padrão caso o ambiente ajuste automaticamente
-        return genai.Client(api_key=api_key)
+    # Configura a chave de forma nativa para o SDK clássico
+    genai.configure(api_key=api_key)
 
-client = get_gemini_client()
+configurar_gemini()
 
 # Configuração do ChromaDB local para RAG
 @st.cache_resource
@@ -135,18 +125,19 @@ if pagina_selecionada == "💬 Chat de Suporte":
                     
                     # 2. Montagem do Contexto Restrito
                     prompt_completo = f"""
+                    {SYSTEM_PROMPT}
+                    
                     Contexto recuperado do manual oficial:
                     {contexto_recuperado}
                     
                     Pergunta do usuário: {prompt}
                     """
 
-                    # 3. Chamada ao Modelo Gemini via client moderno
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt_completo,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_PROMPT,
+                    # 3. Chamada ao Modelo Gemini (SDK Clássico)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    response = model.generate_content(
+                        prompt_completo,
+                        generation_config=genai.types.GenerationConfig(
                             temperature=0.1
                         )
                     )
