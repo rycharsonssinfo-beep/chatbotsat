@@ -1,9 +1,16 @@
+import sys
+# Patch obrigatório para o ChromaDB funcionar no Streamlit Cloud
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 import os
 import streamlit as st
 
 st.set_page_config(page_title="Assistente do Sistema Tributário", layout="wide")
 
-# Garante a criação segura das pastas locais
 os.makedirs("data/vectorstore", exist_ok=True)
 os.makedirs("data/manuals", exist_ok=True)
 os.makedirs("database", exist_ok=True)
