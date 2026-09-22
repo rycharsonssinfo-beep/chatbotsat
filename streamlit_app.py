@@ -1,6 +1,7 @@
 import os
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import pypdf
 import chromadb
 from chromadb.utils import embedding_functions
@@ -13,18 +14,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicialização segura do Gemini compatível com o token AQ.
+# Inicialização correta para o novo formato de chave AQ.
 @st.cache_resource
-def configurar_gemini():
+def get_gemini_client():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("A chave GEMINI_API_KEY não foi configurada nos Secrets do Streamlit.")
         st.stop()
     
-    # Configura a chave de forma nativa para o SDK clássico
-    genai.configure(api_key=api_key)
+    # O novo SDK `google-genai` suporta nativamente o token AQ. 
+    # Passamos a api_key diretamente para o cliente oficial.
+    return genai.Client(api_key=api_key)
 
-configurar_gemini()
+client = get_gemini_client()
 
 # Configuração do ChromaDB local para RAG
 @st.cache_resource
@@ -125,19 +127,18 @@ if pagina_selecionada == "💬 Chat de Suporte":
                     
                     # 2. Montagem do Contexto Restrito
                     prompt_completo = f"""
-                    {SYSTEM_PROMPT}
-                    
                     Contexto recuperado do manual oficial:
                     {contexto_recuperado}
                     
                     Pergunta do usuário: {prompt}
                     """
 
-                    # 3. Chamada ao Modelo Gemini (SDK Clássico)
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    response = model.generate_content(
-                        prompt_completo,
-                        generation_config=genai.types.GenerationConfig(
+                    # 3. Chamada ao Modelo Gemini via SDK Moderno (`google-genai`)
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=prompt_completo,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_PROMPT,
                             temperature=0.1
                         )
                     )
