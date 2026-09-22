@@ -1,3 +1,6 @@
 streamlit>=1.35.0
 google-generativeai>=0.8.3
 pillow>=10.3.0
+chromadb>=0.4.22
+pypdf>=4.0.0
+pandas>=2.0.0
