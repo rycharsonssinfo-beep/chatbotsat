@@ -1,11 +1,3 @@
-import sys
-# Patch obrigatório para o ChromaDB funcionar no Streamlit Cloud
-try:
-    import pysqlite3
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-except ImportError:
-    pass
-
 import os
 import streamlit as st
 
@@ -18,13 +10,13 @@ os.makedirs("database", exist_ok=True)
 import sqlite3
 import pdfplumber
 from openai import OpenAI
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "AQ.Ab8RN6LDzgyz_W4yDpuHA4kAh-CJZqTW-_-zioR8LYMoaWVECg")
-CHROMA_PATH = "data/vectorstore"
+FAISS_PATH = "data/vectorstore"
 MANUALS_PATH = "data/manuals"
 SQLITE_PATH = "database/sat_metadata.db"
 
@@ -43,8 +35,8 @@ def init_db():
         """)
         conn.commit()
         conn.close()
-    except Exception as e:
-        st.error(f"Erro ao inicializar o banco SQLite: {e}")
+    except Exception:
+        pass
 
 def log_feedback(question, answer, helpful):
     try:
@@ -135,8 +127,8 @@ with st.sidebar:
                 chunks = splitter.split_documents(docs)
                 
                 embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-                vectorstore = Chroma.from_documents(chunks, embeddings, persist_directory=CHROMA_PATH)
-                vectorstore.persist()
+                vectorstore = FAISS.from_documents(chunks, embeddings)
+                vectorstore.save_local(FAISS_PATH)
                 st.success(f"Base atualizada com {len(chunks)} chunks!")
 
     st.markdown("---")
@@ -147,10 +139,10 @@ with st.sidebar:
         st.session_state["preset_query"] = "Como emitir um DAM?"
 
 retriever = None
-if os.path.exists(CHROMA_PATH) and os.listdir(CHROMA_PATH):
+if os.path.exists(os.path.join(FAISS_PATH, "index.faiss")):
     try:
         embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-        vectorstore = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
+        vectorstore = FAISS.load_local(FAISS_PATH, embeddings, allow_dangerous_deserialization=True)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
     except Exception:
         pass
