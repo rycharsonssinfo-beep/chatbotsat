@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicialização segura da API do Gemini com o SDK moderno (Suporta chaves "AQ.")
+# Inicialização segura do cliente Gemini com suporte ao SDK moderno
 @st.cache_resource
 def get_gemini_client():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -25,11 +25,10 @@ def get_gemini_client():
 
 client = get_gemini_client()
 
-# Configuração do ChromaDB local em memória/disco para RAG
+# Configuração do ChromaDB local para RAG
 @st.cache_resource
 def init_vector_store():
     chroma_client = chromadb.Client()
-    # Usando função de embedding nativa leve baseada em texto
     ef = embedding_functions.DefaultEmbeddingFunction()
     collection = chroma_client.get_or_create_collection(
         name="manual_tributario",
@@ -66,7 +65,6 @@ with st.sidebar:
     st.markdown("**Sistema de Atendimento e Tributação**")
     st.markdown("---")
     
-    st.markdown("### Navegação")
     pagina_selecionada = st.radio("Ir para:", ["💬 Chat de Suporte", "📚 Base de Conhecimento / Manual"])
     
     st.markdown("---")
@@ -80,11 +78,9 @@ if pagina_selecionada == "💬 Chat de Suporte":
     st.subheader("Assistente Virtual SAT")
     st.caption("Tire dúvidas sobre apuração, cadastros, lançamentos e declarações com base no manual oficial.")
 
-    # Inicialização do histórico de mensagens na sessão
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Exibir sugestões rápidas de perguntas se o chat estiver vazio
     if len(st.session_state.messages) == 0:
         st.markdown("### 💡 Sugestões de perguntas:")
         col1, col2 = st.columns(2)
@@ -99,14 +95,12 @@ if pagina_selecionada == "💬 Chat de Suporte":
                 st.session_state.messages.append({"role": "user", "content": sug})
                 st.rerun()
 
-    # Exibir histórico de conversas
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if "source" in message and message["source"]:
                 st.info(f"📌 **Fonte:** {message['source']}")
 
-    # Entrada do usuário
     if prompt := st.chat_input("Digite sua dúvida ou cole uma mensagem de erro relacionada ao SAT..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -115,7 +109,7 @@ if pagina_selecionada == "💬 Chat de Suporte":
         with st.chat_message("assistant"):
             with st.spinner("Consultando o manual oficial..."):
                 try:
-                    # 1. Recuperação Semântica (RAG) na Base Vetorial
+                    # 1. Recuperação Semântica (RAG)
                     results = collection.query(query_texts=[prompt], n_results=2)
                     
                     contexto_recuperado = ""
@@ -124,12 +118,11 @@ if pagina_selecionada == "💬 Chat de Suporte":
                     if results and results['documents'] and len(results['documents'][0]) > 0:
                         docs = results['documents'][0]
                         metas = results['metadatas'][0]
-                        
                         contexto_recuperado = "\n\n".join(docs)
                         if metas and "source" in metas[0]:
                             fonte_info = f"{metas[0].get('source', 'Manual')} (Página {metas[0].get('page', 'N/A')})"
                     
-                    # 2. Montagem do Prompt com Contexto Restrito
+                    # 2. Montagem do Contexto Restrito
                     prompt_completo = f"""
                     Contexto recuperado do manual oficial:
                     {contexto_recuperado}
@@ -137,13 +130,13 @@ if pagina_selecionada == "💬 Chat de Suporte":
                     Pergunta do usuário: {prompt}
                     """
 
-                    # 3. Chamada ao Modelo Gemini (Usando modelo flash atualizado)
+                    # 3. Chamada ao Modelo Gemini via client moderno
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=prompt_completo,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_PROMPT,
-                            temperature=0.1 # Baixa temperatura para evitar alucinações
+                            temperature=0.1
                         )
                     )
                     
@@ -157,7 +150,6 @@ if pagina_selecionada == "💬 Chat de Suporte":
                 if fonte_info:
                     st.info(f"📌 **Fonte:** {fonte_info}")
 
-                # Salvar no histórico
                 st.session_state.messages.append({
                     "role": "assistant", 
                     "content": resposta_final,
@@ -177,7 +169,6 @@ elif pagina_selecionada == "📚 Base de Conhecimento / Manual":
         if st.button("Processar e Indexar Manual"):
             with st.spinner("Extraindo texto e gerando embeddings inteligentes..."):
                 try:
-                    # Leitura do PDF
                     reader = pypdf.PdfReader(uploaded_file)
                     total_paginas = len(reader.pages)
                     
@@ -189,10 +180,9 @@ elif pagina_selecionada == "📚 Base de Conhecimento / Manual":
                     for idx, page in enumerate(reader.pages):
                         texto_pagina = page.extract_text()
                         if texto_pagina:
-                            # Divisão simples baseada em parágrafos / blocos lógicos
                             paragrafos = texto_pagina.split("\n\n")
                             for p in paragrafos:
-                                if len(p.strip()) > 30: # Evita lixo muito curto
+                                if len(p.strip()) > 30:
                                     textos_chunks.append(p.strip())
                                     metadados_chunks.append({
                                         "source": uploaded_file.name,
@@ -203,7 +193,6 @@ elif pagina_selecionada == "📚 Base de Conhecimento / Manual":
                                     chunk_counter += 1
 
                     if textos_chunks:
-                        # Inserção no ChromaDB
                         collection.add(
                             documents=textos_chunks,
                             metadatas=metadados_chunks,
