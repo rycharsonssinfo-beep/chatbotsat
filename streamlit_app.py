@@ -14,14 +14,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicialização segura do cliente Gemini com suporte ao SDK moderno
+# Inicialização segura do cliente Gemini compatível com o token AQ.
 @st.cache_resource
 def get_gemini_client():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("A chave GEMINI_API_KEY não foi configurada nos Secrets do Streamlit.")
         st.stop()
-    return genai.Client(api_key=api_key)
+    
+    # Define a chave no ambiente para captação automática
+    os.environ["GEMINI_API_KEY"] = api_key
+    
+    # Para chaves com o padrão AQ. (Enterprise / Google Cloud Project), 
+    # inicializamos o cliente utilizando o modo enterprise com o projeto correspondente
+    try:
+        # Tenta inicializar no modo padrão corporativo suportado por esse tipo de token
+        return genai.Client(enterprise=True, project="gen-lang-client-0357902878", location="us-central1")
+    except Exception:
+        # Fallback para o cliente padrão caso o ambiente ajuste automaticamente
+        return genai.Client(api_key=api_key)
 
 client = get_gemini_client()
 
