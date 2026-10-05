@@ -314,7 +314,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. SIDEBAR COM UPLOAD DE LOGO E GERENCIAMENTO
+# 5. SIDEBAR E GERENCIAMENTO
 # ==========================================
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -323,12 +323,6 @@ modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
     st.header("⚙ Painel de Controle")
-    
-    st.subheader("🖼️ Logotipo da Empresa")
-    logo_file = st.file_uploader("Enviar Logo (PNG/JPG)", type=["png", "jpg", "jpeg"], key="upload_logo_main")
-    if logo_file is not None:
-        st.session_state["logo_bytes"] = logo_file.getvalue()
-        st.success("Logo atualizada!")
 
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
         st.session_state["relatorio_model"] = RelatorioModel()
@@ -426,14 +420,13 @@ with st.sidebar:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
 
-# Cabeçalho Principal com a Logo Enviada (se houver)
+# Cabeçalho Principal com a Logo Oficial Pronta
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
-    logo_bytes = st.session_state.get("logo_bytes")
-    if logo_bytes:
-        st.image(logo_bytes, width=130)
-    else:
-        st.markdown("<div style='background:#0d1527; color:white; padding:12px; border-radius:8px; text-align:center; font-weight:bold; font-size:0.8rem;'>Envie sua Logo na Barra Lateral</div>", unsafe_allow_html=True)
+    try:
+        st.image("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png", width=130)
+    except Exception:
+        st.markdown("<div style='background:#0d1527; color:white; padding:12px; border-radius:8px; text-align:center; font-weight:bold; font-size:0.8rem;'>Grupo S&S</div>", unsafe_allow_html=True)
 
 with col_title:
     st.title("Grupo S&S — Relatório de Atendimento Presencial")
@@ -485,7 +478,7 @@ with tab1:
 
 with tab2:
     with st.container(border=True):
-        st.subheader("⚙️ Registro do Serviço Executado")
+        st.subheader("⚙️️ Registro do Serviço Executado")
         c1, c2, c3 = st.columns(3)
         with c1:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
@@ -578,10 +571,9 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
-    l_bytes = st.session_state.get("logo_bytes")
-    if l_bytes:
-        logo_pdf = RLImage(io.BytesIO(l_bytes), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
-    else:
+    try:
+        logo_pdf = RLImage("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png", width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+    except Exception:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
     titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
