@@ -4,6 +4,8 @@ import streamlit as st
 from PIL import Image
 import re
 
+from streamlit_drawable_canvas import st_canvas
+
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -28,7 +30,7 @@ st.markdown("""
         background-color: #0d1527;
         color: #ffffff;
     }
-    /* Correção do botão na barra lateral para cor escura legível */
+    /* Estilo visível e legível para o botão da barra lateral */
     [data-testid="stSidebar"] button {
         background-color: #1b2a4a !important;
         color: #ffffff !important;
@@ -196,6 +198,8 @@ with tab4:
         st.subheader("Área do Cliente e Assinaturas")
         
         col_c1, col_c2 = st.columns(2)
+        
+        # --- USUÁRIO ---
         with col_c1:
             st.markdown("### 👤 Usuário")
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"], key="ac_local")
@@ -204,14 +208,26 @@ with tab4:
             raw_w_u = st.text_input("WhatsApp do Usuário (Apenas números)", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whats_usuario")
             modelo.area_cliente["whatsapp_usuario"] = re.sub(r'\D', '', raw_w_u)
             
-            up_u = st.file_uploader("Enviar imagem da Assinatura do Usuário", type=["png", "jpg", "jpeg"], key="up_u")
-            if up_u:
-                modelo.area_cliente["assinatura_usuario"] = up_u.getvalue()
-            
-            if modelo.area_cliente["assinatura_usuario"]:
-                st.markdown("**Assinatura atualizada (Usuário):**")
-                st.image(modelo.area_cliente["assinatura_usuario"], width=180)
-                
+            st.markdown("##### Assinatura Digital em Tela (Usuário)")
+            canvas_result_u = st_canvas(
+                fill_color="rgba(255, 255, 255, 0)",
+                stroke_width=2,
+                stroke_color="#000000",
+                background_color="#ffffff",
+                height=130,
+                width=350,
+                drawing_mode="freedraw",
+                key="canvas_usuario"
+            )
+            if canvas_result_u.image_data is not None:
+                img_data_u = canvas_result_u.image_data
+                # Converte o array do canvas para imagem PNG em bytes
+                pil_img_u = Image.fromarray(img_data_u.astype('uint8'), mode="RGBA")
+                buf_u = io.BytesIO()
+                pil_img_u.save(buf_u, format="PNG")
+                modelo.area_cliente["assinatura_usuario"] = buf_u.getvalue()
+
+        # --- COORDENADOR ---
         with col_c2:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], key="ac_data_termino")
@@ -220,13 +236,23 @@ with tab4:
             raw_w_c = st.text_input("WhatsApp do Coordenador (Apenas números)", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whats_coord")
             modelo.area_cliente["whatsapp_coordenador"] = re.sub(r'\D', '', raw_w_c)
             
-            up_c = st.file_uploader("Enviar imagem da Assinatura do Coordenador", type=["png", "jpg", "jpeg"], key="up_c")
-            if up_c:
-                modelo.area_cliente["assinatura_coordenador"] = up_c.getvalue()
-                
-            if modelo.area_cliente["assinatura_coordenador"]:
-                st.markdown("**Assinatura atualizada (Coordenador):**")
-                st.image(modelo.area_cliente["assinatura_coordenador"], width=180)
+            st.markdown("##### Assinatura Digital em Tela (Coordenador)")
+            canvas_result_c = st_canvas(
+                fill_color="rgba(255, 255, 255, 0)",
+                stroke_width=2,
+                stroke_color="#000000",
+                background_color="#ffffff",
+                height=130,
+                width=350,
+                drawing_mode="freedraw",
+                key="canvas_coordenador"
+            )
+            if canvas_result_c.image_data is not None:
+                img_data_c = canvas_result_c.image_data
+                pil_img_c = Image.fromarray(img_data_c.astype('uint8'), mode="RGBA")
+                buf_c = io.BytesIO()
+                pil_img_c.save(buf_c, format="PNG")
+                modelo.area_cliente["assinatura_coordenador"] = buf_c.getvalue()
 
 
 # ==========================================
