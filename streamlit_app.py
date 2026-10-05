@@ -76,7 +76,6 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     if modo == "Desenhar na Tela":
         st.info("Desenhe a assinatura no quadro abaixo:")
         canvas_result = st_canvas(
-            fill_color="#ffffff",
             stroke_width=2,
             stroke_color="#000000",
             background_color="#ffffff",
