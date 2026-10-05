@@ -155,7 +155,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. COMPONENTE DE ASSINATURA SEGURO E PERSISTENTE
+# 4. COMPONENTE DE ASSINATURA ROBUSTO
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -168,7 +168,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
     )
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo:</small>", unsafe_allow_html=True)
+        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo e clique no botão para salvar:</small>", unsafe_allow_html=True)
         
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",
@@ -178,32 +178,32 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             height=130,
             width=350,
             drawing_mode="freedraw",
-            update_streamlit=True,
+            update_streamlit=False,
             key=f"canvas_{key_prefix}"
         )
         
-        if canvas_result is not None:
-            try:
-                if canvas_result.image_data is not None:
-                    img_array = canvas_result.image_data
-                    if img_array.any():
-                        pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                        background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                        background.paste(pil_img, mask=pil_img.split()[3])
-                        
-                        buf = io.BytesIO()
-                        background.save(buf, format="PNG")
-                        modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-            except Exception:
-                pass
+        if st.button(f"Salvar {titulo}", key=f"btn_salvar_{key_prefix}"):
+            if canvas_result is not None and canvas_result.image_data is not None:
+                img_array = canvas_result.image_data
+                if img_array.any():
+                    pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                    background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                    background.paste(pil_img, mask=pil_img.split()[3])
+                    
+                    buf = io.BytesIO()
+                    background.save(buf, format="PNG")
+                    modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+                    st.success(f"{titulo} salva com sucesso!")
+                else:
+                    st.warning("O painel de desenho está vazio.")
     else:
         uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
+            st.success(f"{titulo} carregada com sucesso!")
 
     # Exibe a prévia imediatamente se já estiver gravado no modelo
     if modelo_ref.area_cliente[campo_modelo]:
-        st.success(f"Assinatura de {titulo.lower()} registrada!")
         st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
 
 
