@@ -65,7 +65,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA DIGITAL (CORRIGIDO)
+# 2. COMPONENTE DE ASSINATURA DIGITAL
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
@@ -75,6 +75,7 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     
     if modo == "Desenhar na Tela":
         st.info("Desenhe a assinatura no quadro abaixo:")
+        # Parâmetros ajustados para evitar erros de leitura inicial do canvas
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 1)",
             stroke_width=2,
@@ -83,18 +84,21 @@ def capturar_assinatura(titulo: str, key_prefix: str):
             height=150,
             width=400,
             drawing_mode="freedraw",
+            realtime_update=True,
             update_streamlit=True,
             key=f"canvas_{key_prefix}"
         )
         
-        # Validação segura para evitar o RuntimeError quando o canvas estiver vazio
+        # Verificação segura se o canvas possui dados válidos de desenho
         if canvas_result is not None and canvas_result.image_data is not None:
-            img_data = canvas_result.image_data
-            # Verifica se houve alteração/desenho real antes de processar
-            img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            assinatura_bytes = buf.getvalue()
+            try:
+                img_data = canvas_result.image_data
+                img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                assinatura_bytes = buf.getvalue()
+            except Exception:
+                assinatura_bytes = None
     else:
         uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
