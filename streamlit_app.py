@@ -7,6 +7,7 @@ from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
+import requests
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -316,7 +317,20 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 # ==========================================
 # 5. INTERFACE DO STREAMLIT
 # ==========================================
-st.title("📋 Grupo S&S — Relatório de Atendimento Presencial")
+URL_LOGO = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
+
+# Exibindo a Logo e o Título de forma organizada no topo
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    try:
+        response_logo = requests.get(URL_LOGO, timeout=5)
+        if response_logo.status_code == 200:
+            st.image(response_logo.content, width=110)
+    except Exception:
+        pass
+with col_title:
+    st.title("Grupo S&S — Relatório de Atendimento Presencial")
+
 st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
 
 if "relatorio_model" not in st.session_state:
@@ -325,7 +339,7 @@ if "relatorio_model" not in st.session_state:
 modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
-    st.header("⚙️️ Painel de Controle")
+    st.header("⚙ Painel de Controle")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
@@ -424,7 +438,7 @@ with st.sidebar:
 # Abas alinhadas com o formulário oficial
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Informações Gerais", 
-    "⚙️ Serviços", 
+    "⚙️️ Serviços", 
     "📊 Resultados", 
     "✍️ Área do Cliente",
     "📷 Evidências"
@@ -518,7 +532,7 @@ with tab4:
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             raw_wpp_c = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
             modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
-            capturar_assinatura("Assinatura do Coordenador do setor", "coordenador", modelo, "assinatura_coordenador")
+            capturar_assinatura("Assinatura Coordenador", "coordenador", modelo, "assinatura_coordenador")
 
 with tab5:
     with st.container(border=True):
@@ -555,15 +569,28 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     text_dark = colors.HexColor('#1e293b')
     text_muted = colors.HexColor('#64748b')
     
-    header_org_style = ParagraphStyle('HeaderOrg', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=accent_color, textTransform='uppercase', spaceAfter=2)
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=16, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=10)
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=15, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=4)
     section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=10, textColor=colors.white, fontName='Helvetica-Bold', backColor=primary_color, spaceBefore=10, spaceAfter=6, leftIndent=6, rightIndent=6, topPadding=5, bottomPadding=5)
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
-    # Cabeçalho estilo original S&S
-    story.append(Paragraph("Grupo S&S", header_org_style))
-    story.append(Paragraph("RELATÓRIO DE ATENDIMENTO PRESENCIAL", title_style))
+    # Inserindo a Logo no Cabeçalho do PDF usando Tabela (Logo à esquerda, Título à direita)
+    try:
+        res_img = requests.get(URL_LOGO, timeout=5)
+        if res_img.status_code == 200:
+            logo_pdf = RLImage(io.BytesIO(res_img.content), width=3.8*72/25.4, height=1.2*72/25.4, kind='proportional')
+        else:
+            logo_pdf = Paragraph("<b>Grupo S&S</b>", title_style)
+    except Exception:
+        logo_pdf = Paragraph("<b>Grupo S&S</b>", title_style)
+
+    titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
+    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[120, 420])
+    tabela_cabecalho.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(tabela_cabecalho)
     
     # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
