@@ -178,24 +178,28 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             height=130,
             width=350,
             drawing_mode="freedraw",
-            update_streamlit=False,
+            update_streamlit=True,
             key=f"canvas_{key_prefix}"
         )
         
         if st.button(f"Salvar {titulo}", key=f"btn_salvar_{key_prefix}"):
-            if canvas_result is not None and canvas_result.image_data is not None:
-                img_array = canvas_result.image_data
-                if img_array.any():
-                    pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                    background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                    background.paste(pil_img, mask=pil_img.split()[3])
-                    
-                    buf = io.BytesIO()
-                    background.save(buf, format="PNG")
-                    modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-                    st.success(f"{titulo} salva com sucesso!")
-                else:
-                    st.warning("O painel de desenho está vazio.")
+            if canvas_result is not None:
+                try:
+                    if canvas_result.image_data is not None:
+                        img_array = canvas_result.image_data
+                        if img_array.any():
+                            pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                            background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                            background.paste(pil_img, mask=pil_img.split()[3])
+                            
+                            buf = io.BytesIO()
+                            background.save(buf, format="PNG")
+                            modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+                            st.success(f"{titulo} salva com sucesso!")
+                        else:
+                            st.warning("O painel de desenho está vazio.")
+                except Exception as e:
+                    st.error(f"Erro ao capturar o desenho: {e}")
     else:
         uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
