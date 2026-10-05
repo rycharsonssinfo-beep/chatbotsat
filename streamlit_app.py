@@ -91,10 +91,34 @@ st.markdown("""
 
 
 # ==========================================
-# 2. FUNÇÃO AUXILIAR DE VALIDAÇÃO DE TELEFONE
+# 2. LISTAS E AUXILIARES
 # ==========================================
+LISTA_SISTEMAS = [
+    "Selecione o sistema...",
+    "Contabilidade",
+    "Fluxus",
+    "Folha de Pagamento",
+    "Nota Fiscal Eletrônica",
+    "Portal da Transparência",
+    "SAT Web",
+    "SAT WEB SPU",
+    "SIG - Almoxarifado",
+    "SIG - Doações",
+    "SIG - Licitação",
+    "SIG - Merenda",
+    "SIG - Patrimônio",
+    "SIG - PPA",
+    "SigWeb - Almoxarifado",
+    "SigWeb - Geral",
+    "SigWeb - Orçamento",
+    "SigWeb - PPA",
+    "SigWeb - Social",
+    "Licitação",
+    "Veículos Web",
+    "Outros"
+]
+
 def limpar_telefone(texto: str) -> str:
-    """Remove caracteres indesejados, permitindo apenas números e símbolos comuns de telefone."""
     if not texto:
         return ""
     return re.sub(r'[^0-9\s\(\)\-\+]', '', texto)
@@ -166,7 +190,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. COMPONENTE DE ASSINATURA ROBUSTO COM FEEDBACK VISUAL
+# 4. COMPONENTE DE ASSINATURA COM FEEDBACK
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -254,7 +278,16 @@ with tab1:
         col1, col2 = st.columns(2)
         with col1:
             modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
-            modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"])
+            
+            # Substituído por selectbox com os sistemas predefinidos
+            sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
+            try:
+                idx_sistema = LISTA_SISTEMAS.index(sistema_atual)
+            except ValueError:
+                idx_sistema = 0
+            sistema_escolhido = st.selectbox("Sistema", LISTA_SISTEMAS, index=idx_sistema)
+            modelo.informacoes_gerais["sistema"] = "" if sistema_escolhido == "Selecione o sistema..." else sistema_escolhido
+
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
@@ -262,9 +295,7 @@ with tab1:
             raw_wpp = st.text_input("WhatsApp (Ex: (XX) 9XXXX-XXXX)", value=modelo.informacoes_gerais["whatsapp"])
             modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
 
-            # Corrigido para formato brasileiro DD/MM/YYYY
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
-            
             modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
             modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
             
@@ -330,9 +361,7 @@ with tab4:
             
         with col_c2:
             st.markdown("### 👔 Coordenador")
-            # Corrigido para formato brasileiro DD/MM/YYYY
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
-            
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             
             raw_wpp_c = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
@@ -342,7 +371,7 @@ with tab4:
 
 
 # ==========================================
-# 6. GERADOR DE PDF PROFISSIONAL (DESIGN MODERNO)
+# 6. GERADOR DE PDF PROFISSIONAL
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
