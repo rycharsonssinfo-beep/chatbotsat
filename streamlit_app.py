@@ -122,61 +122,61 @@ with tab1:
         st.subheader("Dados Principais e Contato")
         col1, col2 = st.columns(2)
         with col1:
-            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara...)*", value=modelo.informacoes_gerais["entidade"])
-            modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"])
-            modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
-            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
-            modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
+            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara...)*", value=modelo.informacoes_gerais["entidade"], key="ig_entidade")
+            modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"], key="ig_sistema")
+            modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"], key="ig_setor")
+            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"], key="ig_nome_usuario")
+            modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"], key="ig_email")
         with col2:
-            modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
-            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"])
-            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
-            modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
+            modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"], key="ig_whatsapp")
+            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], key="ig_data_visita")
+            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"], key="ig_resp")
+            modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"], key="ig_periodo")
             
             turno_map = {"M": 0, "T": 1, "N": 2}
             turno_atual = modelo.informacoes_gerais.get("turno", "M")
-            turno_escolhido = st.radio("Turno", ["M — Manhã", "T — Tarde", "N — Noite"], index=turno_map.get(turno_atual, 0), horizontal=True)
+            turno_escolhido = st.radio("Turno", ["M — Manhã", "T — Tarde", "N — Noite"], index=turno_map.get(turno_atual, 0), horizontal=True, key="ig_turno")
             modelo.informacoes_gerais["turno"] = turno_escolhido[0]
 
-        modelo.informacoes_gerais["descricao"] = st.text_area("Descrição Detalhada do Atendimento", value=modelo.informacoes_gerais["descricao"])
+        modelo.informacoes_gerais["descricao"] = st.text_area("Descrição Detalhada do Atendimento", value=modelo.informacoes_gerais["descricao"], key="ig_descricao")
 
 with tab2:
     with st.container(border=True):
         st.subheader("Registro do Serviço Executado")
         col3, col4, col5 = st.columns(3)
         with col3:
-            modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
-            modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"])
+            modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"], key="se_implantacao")
+            modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"], key="se_treinamento")
         with col4:
-            modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"])
-            modelo.servico_executado["outros"] = st.checkbox("Outros", value=modelo.servico_executado["outros"])
+            modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"], key="se_dem")
+            modelo.servico_executado["outros"] = st.checkbox("Outros (Serviço)", value=modelo.servico_executado["outros"], key="se_outros")
         with col5:
-            modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
+            modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"], key="se_visita")
 
         if modelo.servico_executado["visita"]:
             st.markdown("##### Tipo de Visita:")
             tipo_atual = modelo.servico_executado.get("tipo_visita", [])
-            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in tipo_atual)
-            tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in tipo_atual)
+            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in tipo_atual, key="tv_rt")
+            tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in tipo_atual, key="tv_tp")
             
             tipos_selecionados = []
             if rt: tipos_selecionados.append("Relacionamento Técnica")
             if tp: tipos_selecionados.append("Técnica Preventiva")
             modelo.servico_executado["tipo_visita"] = tipos_selecionados
 
-        modelo.servico_executado["observacoes"] = st.text_area("Observações sobre o Serviço Executado", value=modelo.servico_executado["observacoes"])
+        modelo.servico_executado["observacoes"] = st.text_area("Observações sobre o Serviço Executado", value=modelo.servico_executado["observacoes"], key="se_obs")
 
 with tab3:
     with st.container(border=True):
         st.subheader("Resultado do Atendimento")
-        modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
-        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior", value=modelo.resultado_atendimento["pendencias_posterior"])
-        modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
-        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para o operador/chefe do setor", value=modelo.resultado_atendimento["pendencias_operador"])
-        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões", value=modelo.resultado_atendimento["cartoes"])
-        modelo.resultado_atendimento["outros"] = st.checkbox("Outros", value=modelo.resultado_atendimento["outros"])
+        modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"], key="ra_perfeito")
+        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior", value=modelo.resultado_atendimento["pendencias_posterior"], key="ra_pend_post")
+        modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"], key="ra_trein_sucesso")
+        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para o operador/chefe do setor", value=modelo.resultado_atendimento["pendencias_operador"], key="ra_pend_op")
+        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões", value=modelo.resultado_atendimento["cartoes"], key="ra_cartoes")
+        modelo.resultado_atendimento["outros"] = st.checkbox("Outros (Resultado)", value=modelo.resultado_atendimento["outros"], key="ra_outros")
         
-        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
+        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"], key="ra_obs")
 
 with tab4:
     with st.container(border=True):
@@ -185,9 +185,9 @@ with tab4:
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             st.markdown("### 👤 Usuário")
-            modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
-            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
-            modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"], key="ac_local")
+            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"], key="ac_nome_usuario")
+            modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whats_usuario")
             
             up_u = st.file_uploader("Enviar imagem da Assinatura do Usuário", type=["png", "jpg", "jpeg"], key="up_u")
             if up_u:
@@ -196,9 +196,9 @@ with tab4:
                 
         with col_c2:
             st.markdown("### 👔 Coordenador")
-            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
-            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], key="ac_data_termino")
+            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"], key="ac_nome_coord")
+            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whats_coord")
             
             up_c = st.file_uploader("Enviar imagem da Assinatura do Coordenador", type=["png", "jpg", "jpeg"], key="up_c")
             if up_c:
@@ -438,7 +438,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 # ==========================================
 st.markdown("---")
 
-if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=True):
+if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=True, key="btn_gerar_pdf"):
     dados_val = modelo.to_dict()
     ig_val = dados_val["informacoes_gerais"]
     
@@ -460,7 +460,8 @@ if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=Tru
                 data=pdf_bytes,
                 file_name="relatorio_atendimento_presencial.pdf",
                 mime="application/pdf",
-                use_container_width=True
+                use_container_width=True,
+                key="btn_download_pdf"
             )
         except Exception as e:
             st.error(f"Erro ao gerar o PDF: {e}")
