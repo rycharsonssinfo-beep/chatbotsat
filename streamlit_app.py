@@ -71,7 +71,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA EM TELA / UPLOAD
+# 2. COMPONENTE DE ASSINATURA TÁTIL / UPLOAD
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
@@ -86,29 +86,25 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     assinatura_bytes = None
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small>Desenhe a assinatura de {titulo} no quadro abaixo:</small>", unsafe_allow_html=True)
+        st.markdown(f"<small>Desenhe a assinatura de {titulo} no quadro abaixo (compatível com toque/mouse):</small>", unsafe_allow_html=True)
         
-        # Componente de Canvas para assinatura digital tátil/mouse
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",
             stroke_width=2,
             stroke_color="#000000",
             background_color="#FFFFFF",
-            height=150,
-            width=400,
+            height=140,
+            width=380,
             drawing_mode="freedraw",
             key=f"canvas_{key_prefix}"
         )
         
-        # Se houver desenho no canvas, converte para bytes PNG
         if canvas_result.image_data is not None:
-            # Verifica se o utilizador desenhou algo (compara se não está totalmente branco)
             img_array = canvas_result.image_data
             if img_array.any():
                 pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                # Converter RGBA para RGB com fundo branco para o PDF
                 background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                background.paste(pil_img, mask=pil_img.split()[3]) # Usar canal alpha como máscara
+                background.paste(pil_img, mask=pil_img.split()[3])
                 
                 buf = io.BytesIO()
                 background.save(buf, format="PNG")
@@ -338,7 +334,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     res_text = f"{r1} O Sistema ficou em perfeito funcionamento, sem nenhuma pendência<br/>" \
                f"{r2} Existem pendências para solução posterior (listar em observações)<br/>" \
                f"{r3} Treinamento efetuado com sucesso<br/>" \
-               f"{r4} Existen pendências para que o operador/chefe do setor solucione depois<br/>" \
+               f"{r4} Existem pendências para que o operador/chefe do setor solucione depois<br/>" \
                f"{r5} Existem cartões (listar em observações)<br/>" \
                f"{r6} Outros (inserir abaixo)"
     story.append(Paragraph(res_text, normal_style))
