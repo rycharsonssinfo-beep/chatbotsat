@@ -1,4 +1,5 @@
 import io
+from datetime import date
 import streamlit as st
 from PIL import Image
 
@@ -19,7 +20,7 @@ class RelatorioModel:
             "nome_usuario": "",
             "email": "",
             "whatsapp": "",
-            "data_visita": "",
+            "data_visita": date.today(),
             "responsavel_atendimento": "",
             "descricao": "",
             "periodo_atendimento": "",
@@ -48,19 +49,25 @@ class RelatorioModel:
             "nome_usuario": "",
             "whatsapp_usuario": "",
             "assinatura_usuario": None,
-            "data_termino": "",
+            "data_termino": date.today(),
             "nome_coordenador": "",
             "whatsapp_coordenador": "",
             "assinatura_coordenador": None
         }
 
     def to_dict(self) -> dict:
-        return {
-            "informacoes_gerais": self.informacoes_gerais,
+        d = {
+            "informacoes_gerais": self.informacoes_gerais.copy(),
             "servico_executado": self.servico_executado,
             "resultado_atendimento": self.resultado_atendimento,
-            "area_cliente": self.area_cliente
+            "area_cliente": self.area_cliente.copy()
         }
+        # Converter datas para string DD/MM/AAAA para o PDF
+        if isinstance(d["informacoes_gerais"].get("data_visita"), date):
+            d["informacoes_gerais"]["data_visita"] = d["informacoes_gerais"]["data_visita"].strftime("%d/%m/%Y")
+        if isinstance(d["area_cliente"].get("data_termino"), date):
+            d["area_cliente"]["data_termino"] = d["area_cliente"]["data_termino"].strftime("%d/%m/%Y")
+        return d
 
 
 # ==========================================
@@ -79,88 +86,119 @@ def capturar_assinatura(titulo: str, key_prefix: str):
 
 
 # ==========================================
-# 3. COMPONENTE DO FORMULÁRIO
+# 3. APLICAÇÃO PRINCIPAL (STREAMLIT)
 # ==========================================
-def renderizar_formulario(modelo: RelatorioModel):
-    st.markdown("### 1. Informações Gerais")
-    col1, col2 = st.columns(2)
-    with col1:
-        modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)", value=modelo.informacoes_gerais["entidade"])
-        modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"])
-        modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
-        modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.informacoes_gerais["nome_usuario"])
-        modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
-    with col2:
-        modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
-        modelo.informacoes_gerais["data_visita"] = st.text_input("Data da Visita (DD/MM/AAAA)", value=modelo.informacoes_gerais["data_visita"])
-        modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
-        modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
-        
-        turno_map = {"M": 0, "T": 1, "N": 2}
-        turno_atual = modelo.informacoes_gerais.get("turno", "M")
-        turno_escolhido = st.radio("Turno", ["M — Manhã", "T — Tarde", "N — Noite"], index=turno_map.get(turno_atual, 0), horizontal=True)
-        modelo.informacoes_gerais["turno"] = turno_escolhido[0]
+st.set_page_config(
+    page_title="Relatório de Atendimento Presencial",
+    page_icon="📋",
+    layout="wide"
+)
 
-    modelo.informacoes_gerais["descricao"] = st.text_area("Descrição", value=modelo.informacoes_gerais["descricao"])
+st.title("📋 Portal de Atendimento - Grupo S&S")
+st.markdown("Preencha as abas abaixo para gerar o **Relatório de Atendimento Presencial** oficial.")
 
-    st.markdown("---")
-    st.markdown("### 2. Registro do Serviço Executado")
-    
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
-        modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"])
-    with col4:
-        modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"])
-        modelo.servico_executado["outros"] = st.checkbox("Outros (inserir nas observações)", value=modelo.servico_executado["outros"])
-    with col5:
-        modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
+# Inicializar estado da sessão
+if "relatorio_model" not in st.session_state:
+    st.session_state["relatorio_model"] = RelatorioModel()
 
-    if modelo.servico_executado["visita"]:
-        st.markdown("##### Tipo de Visita:")
-        tipo_atual = modelo.servico_executado.get("tipo_visita", [])
-        rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in tipo_atual)
-        tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in tipo_atual)
-        
-        tipos_selecionados = []
-        if rt: tipos_selecionados.append("Relacionamento Técnica")
-        if tp: tipos_selecionados.append("Técnica Preventiva")
-        modelo.servico_executado["tipo_visita"] = tipos_selecionados
+modelo = st.session_state["relatorio_model"]
 
-    modelo.servico_executado["observacoes"] = st.text_area("Observações (Serviço Executado)", value=modelo.servico_executado["observacoes"])
+with st.sidebar:
+    st.header("Navegação e Ações")
+    if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
+        st.session_state["relatorio_model"] = RelatorioModel()
+        st.rerun()
 
-    st.markdown("---")
-    st.markdown("### 3. Resultado do Atendimento")
-    modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
-    modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
-    modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
-    modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para que o operador/chefe do setor solucione depois", value=modelo.resultado_atendimento["pendencias_operador"])
-    modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
-    modelo.resultado_atendimento["outros"] = st.checkbox("Outros (inserir abaixo)", value=modelo.resultado_atendimento["outros"])
-    
-    modelo.resultado_atendimento["observacoes"] = st.text_area("Observações (Resultado do Atendimento)", value=modelo.resultado_atendimento["observacoes"])
+# Organização por Abas Modernas
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📋 Informações Gerais", 
+    "⚙️ Serviços Executados", 
+    "📊 Resultado do Atendimento", 
+    "✍️ Área do Cliente"
+])
 
-    st.markdown("---")
-    st.markdown("### 4. Área do Cliente")
-    
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        st.markdown("#### Informações do Usuário")
-        modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
-        modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário (Área do Cliente)", value=modelo.area_cliente["nome_usuario"])
-        modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
-        sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
-        if sig_u:
-            modelo.area_cliente["assinatura_usuario"] = sig_u
+with tab1:
+    with st.container(border=True):
+        st.subheader("Dados Principais e Contato")
+        col1, col2 = st.columns(2)
+        with col1:
+            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
+            modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"])
+            modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
+            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
+            modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
+        with col2:
+            modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
+            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"])
+            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
+            modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
             
-    with col_c2:
-        st.markdown("#### Informações do Setor / Coordenador")
-        modelo.area_cliente["data_termino"] = st.text_input("Data do término do serviço (DD/MM/AAAA)", value=modelo.area_cliente["data_termino"])
-        modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-        modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
-        sig_c = capturar_assinatura("Assinatura do Coordenador do setor", "coordenador")
-        if sig_c:
-            modelo.area_cliente["assinatura_coordenador"] = sig_c
+            turno_map = {"M": 0, "T": 1, "N": 2}
+            turno_atual = modelo.informacoes_gerais.get("turno", "M")
+            turno_escolhido = st.radio("Turno", ["M — Manhã", "T — Tarde", "N — Noite"], index=turno_map.get(turno_atual, 0), horizontal=True)
+            modelo.informacoes_gerais["turno"] = turno_escolhido[0]
+
+        modelo.informacoes_gerais["descricao"] = st.text_area("Descrição Detalhada do Atendimento", value=modelo.informacoes_gerais["descricao"])
+
+with tab2:
+    with st.container(border=True):
+        st.subheader("Registro do Serviço Executado")
+        col3, col4, col5 = st.columns(3)
+        with col3:
+            modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
+            modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"])
+        with col4:
+            modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"])
+            modelo.servico_executado["outros"] = st.checkbox("Outros (inserir nas observações)", value=modelo.servico_executado["outros"])
+        with col5:
+            modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
+
+        if modelo.servico_executado["visita"]:
+            st.markdown("##### Tipo de Visita:")
+            tipo_atual = modelo.servico_executado.get("tipo_visita", [])
+            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in tipo_atual)
+            tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in tipo_atual)
+            
+            tipos_selecionados = []
+            if rt: tipos_selecionados.append("Relacionamento Técnica")
+            if tp: tipos_selecionados.append("Técnica Preventiva")
+            modelo.servico_executado["tipo_visita"] = tipos_selecionados
+
+        modelo.servico_executado["observacoes"] = st.text_area("Observações sobre o Serviço Executado", value=modelo.servico_executado["observacoes"])
+
+with tab3:
+    with st.container(border=True):
+        st.subheader("Resultado do Atendimento")
+        modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
+        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
+        modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
+        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para que o operador/chefe do setor solucione depois", value=modelo.resultado_atendimento["pendencias_operador"])
+        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
+        modelo.resultado_atendimento["outros"] = st.checkbox("Outros (inserir abaixo)", value=modelo.resultado_atendimento["outros"])
+        
+        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado do Atendimento", value=modelo.resultado_atendimento["observacoes"])
+
+with tab4:
+    with st.container(border=True):
+        st.subheader("Área do Cliente e Assinaturas")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            st.markdown("#### Informações do Usuário")
+            modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
+            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário (Área do Cliente)", value=modelo.area_cliente["nome_usuario"])
+            modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
+            if sig_u:
+                modelo.area_cliente["assinatura_usuario"] = sig_u
+                
+        with col_c2:
+            st.markdown("#### Informações do Coordenador")
+            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
+            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
+            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
+            sig_c = capturar_assinatura("Assinatura do Coordenador do setor", "coordenador")
+            if sig_c:
+                modelo.area_cliente["assinatura_coordenador"] = sig_c
 
 
 # ==========================================
@@ -303,39 +341,27 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 5. APLICAÇÃO PRINCIPAL (STREAMLIT)
+# 5. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
 # ==========================================
-st.set_page_config(
-    page_title="Relatório de Atendimento Presencial",
-    page_icon="📋",
-    layout="wide"
-)
-
-st.title("📋 Portal de Atendimento - Grupo S&S")
-st.markdown("Preencha o formulário abaixo para gerar o **Relatório de Atendimento Presencial** oficial.")
-
-# Inicializar estado da sessão
-if "relatorio_model" not in st.session_state:
-    st.session_state["relatorio_model"] = RelatorioModel()
-
-modelo = st.session_state["relatorio_model"]
-
-with st.sidebar:
-    st.header("Navegação e Ações")
-    if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
-        st.session_state["relatorio_model"] = RelatorioModel()
-        st.rerun()
-
-# Renderizar formulário unificado
-renderizar_formulario(modelo)
-
 st.markdown("---")
-col_gen = st.columns(1)[0]
 
-with col_gen:
-    if st.button("🚀 Gerar e Baixar PDF", type="primary", use_container_width=True):
+if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=True):
+    # Validação de campos obrigatórios
+    dados_val = modelo.to_dict()
+    ig_val = dados_val["informacoes_gerais"]
+    
+    erros = []
+    if not ig_val.get("entidade", "").strip():
+        erros.append("O campo **Entidade** na aba 'Informações Gerais' é obrigatório.")
+    if not ig_val.get("nome_usuario", "").strip():
+        erros.append("O campo **Nome do Usuário** na aba 'Informações Gerais' é obrigatório.")
+        
+    if erros:
+        for erro in erros:
+            st.error(erro)
+    else:
         try:
-            pdf_bytes = gerar_pdf_relatorio(modelo.to_dict())
+            pdf_bytes = gerar_pdf_relatorio(dados_val)
             st.success("Relatório gerado com sucesso!")
             st.download_button(
                 label="📥 Baixar PDF Oficial",
