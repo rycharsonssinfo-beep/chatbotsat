@@ -314,34 +314,8 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. INTERFACE DO STREAMLIT & LOGO ROBUSTA
+# 5. SIDEBAR COM UPLOAD DE LOGO E GERENCIAMENTO
 # ==========================================
-def obter_bytes_logo():
-    """Tenta baixar a logo ou gera um fallback elegante em caso de falha de rede/bloqueio."""
-    url = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=4)
-        if response.status_code == 200:
-            return response.content
-    except Exception:
-        pass
-    return None
-
-logo_bytes = obter_bytes_logo()
-
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    if logo_bytes:
-        st.image(logo_bytes, width=120)
-    else:
-        st.markdown("<div style='background:#0d1527; color:white; padding:10px; border-radius:8px; text-align:center; font-weight:bold;'>GRUPO S&S</div>", unsafe_allow_html=True)
-
-with col_title:
-    st.title("Grupo S&S — Relatório de Atendimento Presencial")
-
-st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
-
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
 
@@ -349,6 +323,13 @@ modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
     st.header("⚙ Painel de Controle")
+    
+    st.subheader("🖼️ Logotipo da Empresa")
+    logo_file = st.file_uploader("Enviar Logo (PNG/JPG)", type=["png", "jpg", "jpeg"], key="upload_logo_main")
+    if logo_file is not None:
+        st.session_state["logo_bytes"] = logo_file.getvalue()
+        st.success("Logo atualizada!")
+
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
@@ -443,6 +424,21 @@ with st.sidebar:
             st.markdown("<small style='color: #94a3b8;'>Nenhum registro encontrado.</small>", unsafe_allow_html=True)
     except Exception:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
+
+
+# Cabeçalho Principal com a Logo Enviada (se houver)
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    logo_bytes = st.session_state.get("logo_bytes")
+    if logo_bytes:
+        st.image(logo_bytes, width=130)
+    else:
+        st.markdown("<div style='background:#0d1527; color:white; padding:12px; border-radius:8px; text-align:center; font-weight:bold; font-size:0.8rem;'>Envie sua Logo na Barra Lateral</div>", unsafe_allow_html=True)
+
+with col_title:
+    st.title("Grupo S&S — Relatório de Atendimento Presencial")
+
+st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
 
 # Abas do formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -563,7 +559,7 @@ with tab5:
 
 
 # ==========================================
-# 6. GERAÇÃO DO PDF PROFISSIONAL COM LOGO CORRIGIDA
+# 6. GERAÇÃO DO PDF PROFISSIONAL
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -582,8 +578,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
-    # Tratamento seguro para a logo no ReportLab sem duplicar ponto/vírgula ou falhar
-    l_bytes = obter_bytes_logo()
+    l_bytes = st.session_state.get("logo_bytes")
     if l_bytes:
         logo_pdf = RLImage(io.BytesIO(l_bytes), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
     else:
