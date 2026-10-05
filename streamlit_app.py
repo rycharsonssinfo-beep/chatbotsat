@@ -178,19 +178,24 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             height=130,
             width=350,
             drawing_mode="freedraw",
+            update_streamlit=True,
             key=f"canvas_{key_prefix}"
         )
         
-        if canvas_result is not None and canvas_result.image_data is not None:
-            img_array = canvas_result.image_data
-            if img_array.any():
-                pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                background.paste(pil_img, mask=pil_img.split()[3])
-                
-                buf = io.BytesIO()
-                background.save(buf, format="PNG")
-                modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+        if canvas_result is not None:
+            try:
+                if canvas_result.image_data is not None:
+                    img_array = canvas_result.image_data
+                    if img_array.any():
+                        pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                        background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                        background.paste(pil_img, mask=pil_img.split()[3])
+                        
+                        buf = io.BytesIO()
+                        background.save(buf, format="PNG")
+                        modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+            except Exception:
+                pass
     else:
         uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
