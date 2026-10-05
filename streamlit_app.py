@@ -143,12 +143,10 @@ def adicionar_sistema_db(novo_sistema: str) -> bool:
         conn = sqlite3.connect("relatorios.db", check_same_thread=False)
         cursor = conn.cursor()
         try:
-            # Verifica se já existe ignorando maiúsculas/minúsculas
             cursor.execute("SELECT id FROM sistemas WHERE LOWER(nome) = LOWER(?)", (novo_sistema.strip(),))
             if cursor.fetchone():
                 conn.close()
-                return False  # Já existe
-            
+                return False
             cursor.execute("INSERT INTO sistemas (nome) VALUES (?)", (novo_sistema.strip(),))
             conn.commit()
             conn.close()
@@ -174,7 +172,7 @@ def limpar_telefone(texto: str) -> str:
 
 def validar_email(email: str) -> bool:
     if not email:
-        return True  # Opcional
+        return True
     padrao = r"^[\w\.-]+@[\w\.-]+\.\w+$"
     return bool(re.match(padrao, email))
 
@@ -222,7 +220,7 @@ class RelatorioModel:
             "whatsapp_coordenador": "",
             "assinatura_coordenador": None
         }
-        self.anexos = []  # Lista de dicionários: [{"foto": bytes, "legenda": str}]
+        self.anexos = []
 
     def to_dict(self) -> dict:
         d = {
@@ -291,7 +289,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. INTERFACE PRINCIPAL
+# 5. INTERFACE PRINCIPAL E DASHBOARD
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
 st.markdown("Preencha os campos abaixo, adicione evidências com legendas e gere relatórios profissionais.")
@@ -301,7 +299,7 @@ if "relatorio_model" not in st.session_state:
 
 modelo = st.session_state["relatorio_model"]
 
-# Barra Lateral: Gestão e Histórico
+# Barra Lateral: Gestão, Busca no Histórico e Dashboard Simples
 with st.sidebar:
     st.header("⚙️ Painel de Controle")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
@@ -319,10 +317,32 @@ with st.sidebar:
             st.warning("Sistema já existe ou o nome está vazio.")
 
     st.markdown("---")
-    st.subheader("📂 Histórico de Relatórios")
+    st.subheader("📊 Indicadores Rápidos")
+    try:
+        conn_d = sqlite3.connect("relatorios.db", check_same_thread=False)
+        cursor_d = conn_d.cursor()
+        cursor_d.execute("SELECT COUNT(*) FROM historico")
+        total_rel = cursor_d.fetchone()[0]
+        cursor_d.execute("SELECT sistema, COUNT(*) as qtd FROM historico GROUP BY sistema ORDER BY qtd DESC LIMIT 1")
+        top_sys = cursor_d.fetchone()
+        conn_d.close()
+        
+        st.metric("Total de Relatórios", total_rel)
+        if top_sys:
+            st.metric("Sistema Mais Atendido", top_sys[0], f"{top_sys[1]} atendimentos")
+    except Exception:
+        st.info("Sem dados estatísticos ainda.")
+
+    st.markdown("---")
+    st.subheader("📂 Histórico & Busca")
+    termo_busca = st.text_input("🔍 Buscar por Entidade/Usuário")
+    
     conn_h = sqlite3.connect("relatorios.db", check_same_thread=False)
     cursor_h = conn_h.cursor()
-    cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
+    if termo_busca:
+        cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico WHERE entidade LIKE ? OR nome_usuario LIKE ? ORDER BY id DESC", (f"%{termo_busca}%", f"%{termo_busca}%"))
+    else:
+        cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
     historico_rows = cursor_h.fetchall()
     conn_h.close()
     
@@ -345,7 +365,7 @@ with st.sidebar:
                     st.error(f"Erro ao carregar: {e}")
             st.markdown("---")
     else:
-        st.markdown("<small>Nenhum relatório salvo ainda.</small>", unsafe_allow_html=True)
+        st.markdown("<small>Nenhum relatório encontrado.</small>", unsafe_allow_html=True)
 
 # Abas do Formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -592,7 +612,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 7. GERAÇÃO E PERSISTÊNCIA AUTOMÁTICA
+# 7. GERAÇÃO, PRÉ-VISUALIZAÇÃO E WHATSAPP
 # ==========================================
 st.markdown("---")
 if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_width=True):
@@ -629,12 +649,32 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
 
             pdf_bytes = gerar_pdf_relatorio(dados_val)
             st.success("Relatório gerado e salvo no histórico com sucesso!")
-            st.download_button(
-                label="📥 Baixar PDF Oficial",
-                data=pdf_bytes,
-                file_name=f"relatorio_{ig_val.get('entidade', 'atendimento').lower().replace(' ', '_')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+            
+            # Aba de download e Ações Pós-Geração (WhatsApp e Pré-visualização)
+            col_dl, col_wpp = st.columns(2)
+            with col_dl:
+                st.download_button(
+                    label="📥 Baixar PDF Oficial",
+                    data=pdf_bytes,
+                    file_name=f"relatorio_{ig_val.get('entidade', 'atendimento').lower().replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            with col_wpp:
+                wpp_num = re.sub(r'[^0-9]', '', ig_val.get('whatsapp', ''))
+                if wpp_num:
+                    msg = f"Olá, {ig_val.get('nome_usuario')}. Segue o resumo do atendimento presencial realizado na entidade {ig_val.get('entidade')} referente ao sistema {ig_val.get('sistema')}."
+                    import urllib.parse
+                    link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
+                    st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">💬 Enviar Resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+
+            # Pré-visualização do PDF na tela usando iframe do Streamlit
+            st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
+            base64_pdf = io.BytesIO(pdf_bytes)
+            import base64
+            base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+
         except Exception as e:
             st.error(f"Erro ao processar relatório: {e}")
