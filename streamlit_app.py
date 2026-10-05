@@ -108,7 +108,7 @@ class RelatorioModel:
 # 3. APLICAÇÃO PRINCIPAL
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
-st.markdown("Preencha os dados abaixo para registrar o atendimento técnico e gerar o PDF formatado.")
+st.markdown("Preencha os dados abaixo para registar o atendimento técnico e gerar o PDF formatado.")
 
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -156,7 +156,7 @@ with tab1:
 
 with tab2:
     with st.container(border=True):
-        st.subheader("Registro do Serviço Executado")
+        st.subheader("Registo do Serviço Executado")
         col3, col4, col5 = st.columns(3)
         with col3:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"], key="se_implantacao")
@@ -218,7 +218,7 @@ with tab4:
                 drawing_mode="freedraw",
                 key="canvas_usuario"
             )
-            if canvas_result_u.image_data is not None:
+            if canvas_result_u and canvas_result_u.image_data is not None:
                 pil_img_u = Image.fromarray(canvas_result_u.image_data.astype('uint8'), mode="RGBA")
                 buf_u = io.BytesIO()
                 pil_img_u.save(buf_u, format="PNG")
@@ -244,7 +244,7 @@ with tab4:
                 drawing_mode="freedraw",
                 key="canvas_coordenador"
             )
-            if canvas_result_c.image_data is not None:
+            if canvas_result_c and canvas_result_c.image_data is not None:
                 pil_img_c = Image.fromarray(canvas_result_c.image_data.astype('uint8'), mode="RGBA")
                 buf_c = io.BytesIO()
                 pil_img_c.save(buf_c, format="PNG")
@@ -297,7 +297,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
     story.append(Paragraph("Portal de Treinamentos", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
-    story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
+    story.append(Paragraph("Registo oficial de compromissos e atividades executadas em campo.", subtitle_style))
     
     # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
@@ -344,7 +344,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     
     # Serviços Executados
     se = dados.get("servico_executado", {})
-    story.append(Paragraph("<b>Registro do Serviço Executado</b>", section_style))
+    story.append(Paragraph("<b>Registo do Serviço Executado</b>", section_style))
     
     serv_data = [
         [Paragraph(checkbox_html(se.get('implantacao'), "Implantação"), normal_style),
