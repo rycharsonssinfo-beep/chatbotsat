@@ -155,7 +155,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. COMPONENTE DE ASSINATURA SEGURO
+# 4. COMPONENTE DE ASSINATURA SEGURO E PERSISTENTE
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -168,7 +168,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
     )
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo (use o dedo no celular/tablet ou o mouse):</small>", unsafe_allow_html=True)
+        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo e aguarde atualizar:</small>", unsafe_allow_html=True)
         
         try:
             canvas_result = st_canvas(
@@ -184,6 +184,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             
             if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
                 img_array = canvas_result.image_data
+                # Verifica se há pixels desenhados (diferente de branco puro)
                 if img_array.any():
                     pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
                     background = Image.new("RGB", pil_img.size, (255, 255, 255))
@@ -199,8 +200,9 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
         if uploaded_file is not None:
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
 
+    # Exibe a prévia imediatamente se já estiver gravado no modelo
     if modelo_ref.area_cliente[campo_modelo]:
-        st.success(f"Assinatura de {titulo.lower()} registrada com sucesso!")
+        st.success(f"Assinatura de {titulo.lower()} registrada!")
         st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
 
 
@@ -399,15 +401,13 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         fontSize=8,
         textColor=text_muted,
         spaceBefore=20,
-        alignment=1 # Centralizado
+        alignment=1
     )
 
-    # Cabeçalho do Documento
     story.append(Paragraph("Portal de Treinamentos &bull; Suporte Técnico", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Documento oficial de registro de compromissos, suporte e atividades executadas em campo.", subtitle_style))
     
-    # 1. Informações Gerais
     ig = dados.get("informacoes_gerais", {})
     story.append(Paragraph("Informações Gerais", section_style))
     
@@ -449,7 +449,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_desc)
     
-    # 2. Serviço Executado
     se = dados.get("servico_executado", {})
     story.append(Paragraph("Registro do Serviço Executado", section_style))
     
@@ -494,7 +493,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_obs_serv)
     
-    # 3. Resultado do Atendimento
     ra = dados.get("resultado_atendimento", {})
     story.append(Paragraph("Resultado do Atendimento", section_style))
     
@@ -537,7 +535,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_obs_res)
     
-    # 4. Área do Cliente e Assinaturas
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("Área do Cliente e Validação", section_style))
     
@@ -574,7 +571,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_cli)
     
-    # Rodapé institucional
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     story.append(Spacer(1, 15))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Relatório gerado eletronicamente em {agora_str}", footer_style))
