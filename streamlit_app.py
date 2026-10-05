@@ -357,9 +357,32 @@ with st.sidebar:
                             dados_carregados = json.loads(h_json)
                             novo_mod = RelatorioModel()
                             novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
+                            
+                            # Correção: Converter string de data para objeto date do Python
+                            data_v_str = novo_mod.informacoes_gerais.get("data_visita")
+                            if isinstance(data_v_str, str):
+                                try:
+                                    novo_mod.informacoes_gerais["data_visita"] = datetime.strptime(data_v_str, "%d/%m/%Y").date()
+                                except ValueError:
+                                    try:
+                                        novo_mod.informacoes_gerais["data_visita"] = datetime.strptime(data_v_str, "%Y-%m-%d").date()
+                                    except ValueError:
+                                        novo_mod.informacoes_gerais["data_visita"] = date.today()
+
                             novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
                             novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
+                            
                             novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
+                            data_t_str = novo_mod.area_cliente.get("data_termino")
+                            if isinstance(data_t_str, str):
+                                try:
+                                    novo_mod.area_cliente["data_termino"] = datetime.strptime(data_t_str, "%d/%m/%Y").date()
+                                except ValueError:
+                                    try:
+                                        novo_mod.area_cliente["data_termino"] = datetime.strptime(data_t_str, "%Y-%m-%d").date()
+                                    except ValueError:
+                                        novo_mod.area_cliente["data_termino"] = date.today()
+
                             novo_mod.anexos = dados_carregados.get("anexos", [])
                             st.session_state["relatorio_model"] = novo_mod
                             st.success("Carregado!")
