@@ -7,7 +7,6 @@ from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
-import requests
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -315,19 +314,29 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. INTERFACE DO STREAMLIT
+# 5. INTERFACE DO STREAMLIT & LOGO ROBUSTA
 # ==========================================
-URL_LOGO = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
-
-# Exibindo a Logo e o Título de forma organizada no topo
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
+def obter_bytes_logo():
+    """Tenta baixar a logo ou gera um fallback elegante em caso de falha de rede/bloqueio."""
+    url = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
     try:
-        response_logo = requests.get(URL_LOGO, timeout=5)
-        if response_logo.status_code == 200:
-            st.image(response_logo.content, width=110)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=4)
+        if response.status_code == 200:
+            return response.content
     except Exception:
         pass
+    return None
+
+logo_bytes = obter_bytes_logo()
+
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    if logo_bytes:
+        st.image(logo_bytes, width=120)
+    else:
+        st.markdown("<div style='background:#0d1527; color:white; padding:10px; border-radius:8px; text-align:center; font-weight:bold;'>GRUPO S&S</div>", unsafe_allow_html=True)
+
 with col_title:
     st.title("Grupo S&S — Relatório de Atendimento Presencial")
 
@@ -435,10 +444,10 @@ with st.sidebar:
     except Exception:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
-# Abas alinhadas com o formulário oficial
+# Abas do formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Informações Gerais", 
-    "⚙️️ Serviços", 
+    "⚙ Serviços", 
     "📊 Resultados", 
     "✍️ Área do Cliente",
     "📷 Evidências"
@@ -554,7 +563,7 @@ with tab5:
 
 
 # ==========================================
-# 6. GERAÇÃO DO PDF PROFISSIONAL ESTILO S&S
+# 6. GERAÇÃO DO PDF PROFISSIONAL COM LOGO CORRIGIDA
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -563,32 +572,28 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     
     styles = getSampleStyleSheet()
     primary_color = colors.HexColor('#0d1527')
-    accent_color = colors.HexColor('#1b5ef7')
     border_color = colors.HexColor('#cbd5e1')
     bg_light = colors.HexColor('#f8fafc')
     text_dark = colors.HexColor('#1e293b')
     text_muted = colors.HexColor('#64748b')
     
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=15, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=4)
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=14, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=2)
     section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=10, textColor=colors.white, fontName='Helvetica-Bold', backColor=primary_color, spaceBefore=10, spaceAfter=6, leftIndent=6, rightIndent=6, topPadding=5, bottomPadding=5)
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
-    # Inserindo a Logo no Cabeçalho do PDF usando Tabela (Logo à esquerda, Título à direita)
-    try:
-        res_img = requests.get(URL_LOGO, timeout=5)
-        if res_img.status_code == 200:
-            logo_pdf = RLImage(io.BytesIO(res_img.content), width=3.8*72/25.4, height=1.2*72/25.4, kind='proportional')
-        else:
-            logo_pdf = Paragraph("<b>Grupo S&S</b>", title_style)
-    except Exception:
-        logo_pdf = Paragraph("<b>Grupo S&S</b>", title_style)
+    # Tratamento seguro para a logo no ReportLab sem duplicar ponto/vírgula ou falhar
+    l_bytes = obter_bytes_logo()
+    if l_bytes:
+        logo_pdf = RLImage(io.BytesIO(l_bytes), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+    else:
+        logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
     titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
-    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[120, 420])
+    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[110, 430])
     tabela_cabecalho.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(tabela_cabecalho)
     
