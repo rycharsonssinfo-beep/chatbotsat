@@ -1,5 +1,5 @@
 import io
-from datetime import date
+from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
@@ -18,16 +18,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Injeção de CSS customizado para espelhar o design do Portal S&S
 st.markdown("""
     <style>
-    /* Fundo geral e fontes */
     .stApp {
         background-color: #f4f6f9;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    
-    /* Barra lateral (Sidebar) */
     [data-testid="stSidebar"] {
         background-color: #0d1527;
         color: #ffffff;
@@ -43,8 +39,6 @@ st.markdown("""
         background-color: #1446c2;
         color: white;
     }
-
-    /* Estilização de Containers / Cards */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
         background-color: #ffffff;
         border-radius: 12px;
@@ -52,8 +46,6 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         border: 1px solid #e2e8f0 !important;
     }
-
-    /* Abas superiores */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -70,8 +62,6 @@ st.markdown("""
         background-color: #1b5ef7 !important;
         color: white !important;
     }
-
-    /* Botões principais */
     .stButton button[kind="primary"] {
         background-color: #1b5ef7;
         color: white;
@@ -216,7 +206,6 @@ with st.sidebar:
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
 
-# Abas do sistema
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Informações Gerais", 
     "⚙️ Serviços Executados", 
@@ -305,7 +294,7 @@ with tab4:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_coordenador if "whatsapp_coordenador" in modelo.area_cliente else model_wa := modelo.area_cliente["whatsapp_coordenador"])
             
             sig_c = capturar_assinatura("Assinatura do Coordenador", "coordenador")
             if sig_c:
@@ -314,7 +303,7 @@ with tab4:
 
 
 # ==========================================
-# 5. GERADOR DE PDF
+# 5. GERADOR DE PDF NO PADRÃO DO PORTAL S&S
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -322,35 +311,65 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story = []
     
     styles = getSampleStyleSheet()
+    
+    # Estilos padronizados exatamente com o layout do Portal de Treinamentos
+    header_org_style = ParagraphStyle(
+        'HeaderOrg',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#64748b'),
+        spaceAfter=2
+    )
+    
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Heading1'],
         fontSize=14,
         textColor=colors.HexColor('#0d1527'),
-        spaceAfter=10,
-        alignment=1
+        fontName='Helvetica-Bold',
+        spaceAfter=2
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'SubtitleStyle',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#475569'),
+        spaceAfter=12
     )
     
     section_style = ParagraphStyle(
         'SectionStyle',
         parent=styles['Heading2'],
-        fontSize=11,
+        fontSize=10,
         textColor=colors.white,
+        fontName='Helvetica-Bold',
         backColor=colors.HexColor('#0d1527'),
-        spaceBefore=8,
-        spaceAfter=8,
+        spaceBefore=10,
+        spaceAfter=6,
         leftIndent=4,
-        rightIndent=4
+        rightIndent=4,
+        topPadding=4,
+        bottomPadding=4
     )
     
     normal_style = styles['Normal']
     normal_style.fontSize = 9
     normal_style.leading = 11
+    
+    footer_style = ParagraphStyle(
+        'FooterStyle',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#94a3b8'),
+        spaceBefore=15
+    )
 
-    # Cabeçalho
-    story.append(Paragraph("<b>Portal de Atendimento - Grupo S&S</b>", normal_style))
-    story.append(Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style))
-    story.append(Spacer(1, 5))
+    # Cabeçalho Institucional (Idêntico ao PDF do Portal)
+    story.append(Paragraph("Portal de Treinamentos", header_org_style))
+    story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
+    story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
+    story.append(Spacer(1, 4))
     
     # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
@@ -369,10 +388,15 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
          Paragraph(f"<b>Turno:</b> [ {'X' if ig.get('turno')=='M' else ' '} ] M  [ {'X' if ig.get('turno')=='T' else ' '} ] T  [ {'X' if ig.get('turno')=='N' else ' '} ] N", normal_style)],
     ]
     t_info = Table(info_data, colWidths=[270, 270])
-    t_info.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 0.5, colors.grey), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+    t_info.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5)
+    ]))
     story.append(t_info)
     
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Descrição:</b> {ig.get('descricao', '')}", normal_style))
     
     # Serviço Executado
@@ -395,7 +419,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         tp_c = "[X]" if "Técnica Preventiva" in tv else "[  ]"
         story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;Tipo de Visita: {rt_c} Relacionamento Técnica &nbsp;&nbsp; {tp_c} Técnica Preventiva", normal_style))
         
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Observações (Serviço):</b> {se.get('observacoes', '')}", normal_style))
     
     # Resultado
@@ -416,10 +440,10 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
                f"{r5} Existem cartões (listar em observações)<br/>" \
                f"{r6} Outros (inserir abaixo)"
     story.append(Paragraph(res_text, normal_style))
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Observações (Resultado):</b> {ra.get('observacoes', '')}", normal_style))
     
-    # Área do Cliente
+    # Área do Cliente (Assinaturas)
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
@@ -444,8 +468,19 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]
     
     t_cli = Table(cliente_data, colWidths=[270, 270])
-    t_cli.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 0.5, colors.grey), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+    t_cli.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5)
+    ]))
     story.append(t_cli)
+    
+    # Rodapé Oficial do Portal
+    agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Emitido em {agora_str}", footer_style))
+    story.append(Paragraph("Relatório de uso administrativo", ParagraphStyle('SubFooter', parent=footer_style, fontSize=7)))
     
     doc.build(story)
     buffer.seek(0)
