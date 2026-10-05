@@ -119,9 +119,18 @@ LISTA_SISTEMAS = [
 ]
 
 def limpar_telefone(texto: str) -> str:
+    """Remove absolutamente tudo o que não for número."""
     if not texto:
         return ""
-    return re.sub(r'[^0-9\s\(\)\-\+]', '', texto)
+    apenas_numeros = re.sub(r'[^0-9]', '', texto)
+    
+    # Opcional: Formatar visualmente se tiver tamanho de telefone válido (ex: 11 dígitos)
+    if len(apenas_numeros) == 11:
+        return f"({apenas_numeros[:2]}) {apenas_numeros[2]} {apenas_numeros[3:7]}-{apenas_numeros[7:]}"
+    elif len(apenas_numeros) == 10:
+        return f"({apenas_numeros[:2]}) {apenas_numeros[2:6]}-{apenas_numeros[6:]}"
+    
+    return apenas_numeros
 
 
 # ==========================================
@@ -279,7 +288,6 @@ with tab1:
         with col1:
             modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
             
-            # Substituído por selectbox com os sistemas predefinidos
             sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
             try:
                 idx_sistema = LISTA_SISTEMAS.index(sistema_atual)
@@ -292,7 +300,7 @@ with tab1:
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
-            raw_wpp = st.text_input("WhatsApp (Ex: (XX) 9XXXX-XXXX)", value=modelo.informacoes_gerais["whatsapp"])
+            raw_wpp = st.text_input("WhatsApp (Apenas números, ex: 85999999999)", value=modelo.informacoes_gerais["whatsapp"])
             modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
 
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
@@ -354,7 +362,7 @@ with tab4:
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
             
-            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            raw_wpp_u = st.text_input("WhatsApp do Usuário (Apenas números)", value=modelo.area_cliente["whatsapp_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
             
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
@@ -364,7 +372,7 @@ with tab4:
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             
-            raw_wpp_c = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
+            raw_wpp_c = st.text_input("WhatsApp do Coordenador (Apenas números)", value=modelo.area_cliente["whatsapp_coordenador"])
             modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
             
             capturar_assinatura("Assinatura do Coordenador", "coordenador", modelo, "assinatura_coordenador")
@@ -655,7 +663,7 @@ if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=Tru
             st.download_button(
                 label="📥 Baixar PDF Oficial",
                 data=pdf_bytes,
-                file_name="relatorio_atendimento_presencial.pdf",
+                    file_name="relatorio_atendimento_presencial.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
