@@ -303,28 +303,39 @@ with tab4:
 
 
 # ==========================================
-# 5. GERADOR DE PDF NO PADRÃO DO PORTAL S&S
+# 5. GERADOR DE PDF ALTAMENTE REFINADO E PROFISSIONAL
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    # Margens balanceadas de 25 unidades
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=25, bottomMargin=25)
     story = []
     
     styles = getSampleStyleSheet()
     
+    # Paleta de Cores do Portal S&S
+    cor_primaria = colors.HexColor('#0d1527')   # Azul escuro corporativo
+    cor_accent = colors.HexColor('#1b5ef7')     # Azul vivo do portal
+    cor_texto = colors.HexColor('#1e293b')      # Cinza escuro para texto
+    cor_muted = colors.HexColor('#64748b')      # Cinza claro para subtítulos/rodapé
+    cor_borda = colors.HexColor('#cbd5e1')      # Borda sutil
+    cor_fundo_bloco = colors.HexColor('#f8fafc')# Fundo levemente acinzentado para caixas
+    
+    # Estilos customizados limpos
     header_org_style = ParagraphStyle(
         'HeaderOrg',
         parent=styles['Normal'],
         fontSize=8,
-        textColor=colors.HexColor('#64748b'),
-        spaceAfter=2
+        textColor=cor_muted,
+        fontName='Helvetica',
+        spaceAfter=1
     )
     
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Heading1'],
-        fontSize=14,
-        textColor=colors.HexColor('#0d1527'),
+        fontSize=15,
+        textColor=cor_primaria,
         fontName='Helvetica-Bold',
         spaceAfter=2
     )
@@ -332,43 +343,63 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     subtitle_style = ParagraphStyle(
         'SubtitleStyle',
         parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.HexColor('#475569'),
-        spaceAfter=12
+        fontSize=8.5,
+        textColor=cor_muted,
+        fontName='Helvetica',
+        spaceAfter=10
     )
     
+    # Cabeçalho de seções elegante com fundo escuro e cantos limpos
     section_style = ParagraphStyle(
         'SectionStyle',
         parent=styles['Heading2'],
-        fontSize=10,
+        fontSize=9.5,
         textColor=colors.white,
         fontName='Helvetica-Bold',
-        backColor=colors.HexColor('#0d1527'),
+        backColor=cor_primaria,
         spaceBefore=10,
-        spaceAfter=6,
-        leftIndent=4,
-        rightIndent=4,
+        spaceAfter=4,
+        leftIndent=6,
+        rightIndent=6,
         topPadding=4,
         bottomPadding=4
     )
     
-    normal_style = styles['Normal']
-    normal_style.fontSize = 9
-    normal_style.leading = 11
+    normal_style = ParagraphStyle(
+        'NormalCustom',
+        parent=styles['Normal'],
+        fontSize=8.5,
+        leading=11,
+        textColor=cor_texto,
+        fontName='Helvetica'
+    )
+    
+    bold_style = ParagraphStyle(
+        'BoldCustom',
+        parent=normal_style,
+        fontName='Helvetica-Bold'
+    )
     
     footer_style = ParagraphStyle(
         'FooterStyle',
         parent=styles['Normal'],
-        fontSize=8,
-        textColor=colors.HexColor('#94a3b8'),
-        spaceBefore=15
+        fontSize=7.5,
+        textColor=cor_muted,
+        fontName='Helvetica',
+        spaceBefore=10
     )
 
+    # Função auxiliar para desenhar caixas de seleção bonitas em HTML/ReportLab
+    def checkbox_html(checked: bool, label: str) -> str:
+        box = f'<font color="{cor_accent.hexval()}"><b>[X]</b></font>' if checked else f'<font color="{cor_muted.hexval()}">[  ]</font>'
+        return f'{box} {label}'
+
+    # 1. Cabeçalho Institucional
     story.append(Paragraph("Portal de Treinamentos", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
-    story.append(Spacer(1, 4))
     
+    # 2. Informações Gerais
     ig = dados.get("informacoes_gerais", {})
     story.append(Paragraph("<b>Informações Gerais</b>", section_style))
     
@@ -382,98 +413,174 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         [Paragraph(f"<b>E-mail:</b> {ig.get('email', '')}", normal_style),
          Paragraph(f"<b>Resp. Atendimento:</b> {ig.get('responsavel_atendimento', '')}", normal_style)],
         [Paragraph(f"<b>Período:</b> {ig.get('periodo_atendimento', '')}", normal_style),
-         Paragraph(f"<b>Turno:</b> [ {'X' if ig.get('turno')=='M' else ' '} ] M  [ {'X' if ig.get('turno')=='T' else ' '} ] T  [ {'X' if ig.get('turno')=='N' else ' '} ] N", normal_style)],
+         Paragraph(f"<b>Turno:</b> &nbsp; [ {'<b>X</b>' if ig.get('turno')=='M' else '&nbsp;'} ] M &nbsp;&nbsp;&nbsp; [ {'<b>X</b>' if ig.get('turno')=='T' else '&nbsp;'} ] T &nbsp;&nbsp;&nbsp; [ {'<b>X</b>' if ig.get('turno')=='N' else '&nbsp;'} ] N", normal_style)],
     ]
-    t_info = Table(info_data, colWidths=[270, 270])
+    t_info = Table(info_data, colWidths=[280, 280])
     t_info.setStyle(TableStyle([
-        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+        ('INNERGRID', (0,0), (-1,-1), 0.3, colors.HexColor('#f1f5f9')),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#ffffff')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5)
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6)
     ]))
     story.append(t_info)
     
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(f"<b>Descrição:</b> {ig.get('descricao', '')}", normal_style))
+    # Descrição em Caixa Destaque
+    desc_text = ig.get('descricao', '').strip()
+    if desc_text:
+        story.append(Spacer(1, 4))
+        desc_table = Table([[Paragraph(f"<b>Descrição Detalhada:</b><br/>{desc_text}", normal_style)]], colWidths=[560])
+        desc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), cor_fundo_bloco),
+            ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(desc_table)
     
+    # 3. Registro do Serviço Executado
     se = dados.get("servico_executado", {})
     story.append(Paragraph("<b>Registro do Serviço Executado</b>", section_style))
     
-    check_implantacao = "[X]" if se.get('implantacao') else "[  ]"
-    check_treinamento = "[X]" if se.get('treinamento') else "[  ]"
-    check_dem = "[X]" if se.get('demonstracao_sistema') else "[  ]"
-    check_visita = "[X]" if se.get('visita') else "[  ]"
-    check_outros = "[X]" if se.get('outros') else "[  ]"
+    c_imp = checkbox_html(se.get('implantacao'), "Implantação")
+    c_tre = checkbox_html(se.get('treinamento'), "Treinamento")
+    c_dem = checkbox_html(se.get('demonstracao_sistema'), "Demonstração de Sistema")
+    c_vis = checkbox_html(se.get('visita'), "Visita")
+    c_out = checkbox_html(se.get('outros'), "Outros")
     
-    serv_text = f"{check_implantacao} Implantação   &nbsp;&nbsp;&nbsp;&nbsp; {check_treinamento} Treinamento   &nbsp;&nbsp;&nbsp;&nbsp; {check_dem} Demonstração de Sistema<br/>" \
-                f"{check_visita} Visita   &nbsp;&nbsp;&nbsp;&nbsp; {check_outros} Outros"
-    story.append(Paragraph(serv_text, normal_style))
+    serv_data = [
+        [Paragraph(c_imp, normal_style), Paragraph(c_tre, normal_style), Paragraph(c_dem, normal_style)],
+        [Paragraph(c_vis, normal_style), Paragraph(c_out, normal_style), Paragraph("", normal_style)]
+    ]
+    t_serv = Table(serv_data, colWidths=[186, 186, 188])
+    t_serv.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#ffffff')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING', (0,0), (-1,-1), 6)
+    ]))
+    story.append(t_serv)
     
     if se.get('visita'):
         tv = se.get('tipo_visita', [])
-        rt_c = "[X]" if "Relacionamento Técnica" in tv else "[  ]"
-        tp_c = "[X]" if "Técnica Preventiva" in tv else "[  ]"
-        story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;Tipo de Visita: {rt_c} Relacionamento Técnica &nbsp;&nbsp; {tp_c} Técnica Preventiva", normal_style))
+        rt_c = checkbox_html("Relacionamento Técnica" in tv, "Relacionamento Técnica")
+        tp_c = checkbox_html("Técnica Preventiva" in tv, "Técnica Preventiva")
+        t_visita_box = Table([[Paragraph(f"<b>Tipo de Visita:</b> &nbsp;&nbsp; {rt_c} &nbsp;&nbsp;&nbsp;&nbsp; {tp_c}", normal_style)]], colWidths=[560])
+        t_visita_box.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), cor_fundo_bloco),
+            ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('LEFTPADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(Spacer(1, 3))
+        story.append(t_visita_box)
         
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(f"<b>Observações (Serviço):</b> {se.get('observacoes', '')}", normal_style))
+    obs_serv = se.get('observacoes', '').strip()
+    if obs_serv:
+        story.append(Spacer(1, 3))
+        t_obs_s = Table([[Paragraph(f"<b>Observações (Serviço):</b><br/>{obs_serv}", normal_style)]], colWidths=[560])
+        t_obs_s.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), cor_fundo_bloco),
+            ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('LEFTPADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_obs_s)
     
+    # 4. Resultado do Atendimento
     ra = dados.get("resultado_atendimento", {})
     story.append(Paragraph("<b>Resultado do Atendimento</b>", section_style))
     
-    r1 = "[X]" if ra.get('perfeito_funcionamento') else "[  ]"
-    r2 = "[X]" if ra.get('pendencias_posterior') else "[  ]"
-    r3 = "[X]" if ra.get('treinamento_sucesso') else "[  ]"
-    r4 = "[X]" if ra.get('pendencias_operador') else "[  ]"
-    r5 = "[X]" if ra.get('cartoes') else "[  ]"
-    r6 = "[X]" if ra.get('outros') else "[  ]"
+    r1 = checkbox_html(ra.get('perfeito_funcionamento'), "O Sistema ficou em perfeito funcionamento, sem nenhuma pendência")
+    r2 = checkbox_html(ra.get('pendencias_posterior'), "Existem pendências para solução posterior (listar em observações)")
+    r3 = checkbox_html(ra.get('treinamento_sucesso'), "Treinamento efetuado com sucesso")
+    r4 = checkbox_html(ra.get('pendencias_operador'), "Existem pendências para que o operador/chefe do setor solucione depois")
+    r5 = checkbox_html(ra.get('cartoes'), "Existem cartões (listar em observações)")
+    r6 = checkbox_html(ra.get('outros'), "Outros (inserir abaixo)")
     
-    res_text = f"{r1} O Sistema ficou em perfeito funcionamento, sem nenhuma pendência<br/>" \
-               f"{r2} Existem pendências para solução posterior (listar em observações)<br/>" \
-               f"{r3} Treinamento efetuado com sucesso<br/>" \
-               f"{r4} Existem pendências para que o operador/chefe do setor solucione depois<br/>" \
-               f"{r5} Existem cartões (listar em observações)<br/>" \
-               f"{r6} Outros (inserir abaixo)"
-    story.append(Paragraph(res_text, normal_style))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(f"<b>Observações (Resultado):</b> {ra.get('observacoes', '')}", normal_style))
+    res_data = [
+        [Paragraph(r1, normal_style)],
+        [Paragraph(r2, normal_style)],
+        [Paragraph(r3, normal_style)],
+        [Paragraph(r4, normal_style)],
+        [Paragraph(r5, normal_style)],
+        [Paragraph(r6, normal_style)]
+    ]
+    t_res = Table(res_data, colWidths=[560])
+    t_res.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#ffffff')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6)
+    ]))
+    story.append(t_res)
     
+    obs_res = ra.get('observacoes', '').strip()
+    if obs_res:
+        story.append(Spacer(1, 3))
+        t_obs_r = Table([[Paragraph(f"<b>Observações (Resultado):</b><br/>{obs_res}", normal_style)]], colWidths=[560])
+        t_obs_r.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), cor_fundo_bloco),
+            ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('LEFTPADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_obs_r)
+    
+    # 5. Área do Cliente e Assinaturas
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
-    sig_u_img = ""
+    sig_u_img = Paragraph("<i>(Sem assinatura informada)</i>", normal_style)
     if ac.get("assinatura_usuario"):
-        sig_u_img = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=120, height=45)
-    sig_c_img = ""
+        sig_u_img = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=140, height=45)
+        
+    sig_c_img = Paragraph("<i>(Sem assinatura informada)</i>", normal_style)
     if ac.get("assinatura_coordenador"):
-        sig_c_img = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=120, height=45)
+        sig_c_img = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=140, height=45)
         
     cliente_data = [
         [Paragraph(f"<b>Local:</b> {ac.get('local', '')}", normal_style),
-         Paragraph(f"<b>Data do término do serviço:</b> {ac.get('data_termino', '')}", normal_style)],
+         Paragraph(f"<b>Data do término:</b> {ac.get('data_termino', '')}", normal_style)],
         [Paragraph(f"<b>Nome do Usuário:</b> {ac.get('nome_usuario', '')}", normal_style),
-         Paragraph(f"<b>Nome do Coordenador do setor:</b> {ac.get('nome_coordenador', '')}", normal_style)],
-        [Paragraph(f"<b>WhatsApp do Usuário:</b> {ac.get('whatsapp_usuario', '')}", normal_style),
-         Paragraph(f"<b>WhatsApp do Coordenador:</b> {ac.get('whatsapp_coordenador', '')}", normal_style)],
-        [Paragraph("<b>Assinatura do Usuário:</b><br/>", normal_style),
-         Paragraph("<b>Assinatura do Coordenador do Setor:</b><br/>", normal_style)],
-        [sig_u_img if sig_u_img else Paragraph("<i>(Sem assinatura)</i>", normal_style),
-         sig_c_img if sig_c_img else Paragraph("<i>(Sem assinatura)</i>", normal_style)]
+         Paragraph(f"<b>Nome do Coordenador:</b> {ac.get('nome_coordenador', '')}", normal_style)],
+        [Paragraph(f"<b>WhatsApp Usuário:</b> {ac.get('whatsapp_usuario', '')}", normal_style),
+         Paragraph(f"<b>WhatsApp Coordenador:</b> {ac.get('whatsapp_coordenador', '')}", normal_style)],
+        [Paragraph("<b>Assinatura do Usuário:</b>", bold_style),
+         Paragraph("<b>Assinatura do Coordenador:</b>", bold_style)],
+        [sig_u_img, sig_c_img]
     ]
     
-    t_cli = Table(cliente_data, colWidths=[270, 270])
+    t_cli = Table(cliente_data, colWidths=[280, 280])
     t_cli.setStyle(TableStyle([
-        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('BOX', (0,0), (-1,-1), 0.5, cor_borda),
+        ('INNERGRID', (0,0), (-1,-1), 0.3, colors.HexColor('#f1f5f9')),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#ffffff')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5)
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6)
     ]))
     story.append(t_cli)
     
+    # 6. Rodapé Oficial
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Emitido em {agora_str}", footer_style))
-    story.append(Paragraph("Relatório de uso administrativo", ParagraphStyle('SubFooter', parent=footer_style, fontSize=7)))
+    story.append(Paragraph("Relatório de uso administrativo", ParagraphStyle('SubFooter', parent=footer_style, fontSize=6.5, textColor=colors.HexColor('#94a3b8'))))
     
     doc.build(story)
     buffer.seek(0)
@@ -503,7 +610,7 @@ if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=Tru
             pdf_bytes = gerar_pdf_relatorio(dados_val)
             st.success("Relatório gerado com sucesso!")
             st.download_button(
-                label="📥 Baixar PDF Oficial",
+                label="📥 Baixar PDF Oficial Formatado",
                 data=pdf_bytes,
                 file_name="relatorio_atendimento_presencial.pdf",
                 mime="application/pdf",
