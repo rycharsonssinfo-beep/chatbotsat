@@ -30,7 +30,6 @@ st.markdown("""
         background-color: #0d1527;
         color: #ffffff;
     }
-    /* Estilo visível e legível para o botão da barra lateral */
     [data-testid="stSidebar"] button {
         background-color: #1b2a4a !important;
         color: #ffffff !important;
@@ -217,12 +216,11 @@ with tab4:
                 height=130,
                 width=350,
                 drawing_mode="freedraw",
+                realtime_update=True,
                 key="canvas_usuario"
             )
             if canvas_result_u.image_data is not None:
-                img_data_u = canvas_result_u.image_data
-                # Converte o array do canvas para imagem PNG em bytes
-                pil_img_u = Image.fromarray(img_data_u.astype('uint8'), mode="RGBA")
+                pil_img_u = Image.fromarray(canvas_result_u.image_data.astype('uint8'), mode="RGBA")
                 buf_u = io.BytesIO()
                 pil_img_u.save(buf_u, format="PNG")
                 modelo.area_cliente["assinatura_usuario"] = buf_u.getvalue()
@@ -245,11 +243,11 @@ with tab4:
                 height=130,
                 width=350,
                 drawing_mode="freedraw",
+                realtime_update=True,
                 key="canvas_coordenador"
             )
             if canvas_result_c.image_data is not None:
-                img_data_c = canvas_result_c.image_data
-                pil_img_c = Image.fromarray(img_data_c.astype('uint8'), mode="RGBA")
+                pil_img_c = Image.fromarray(canvas_result_c.image_data.astype('uint8'), mode="RGBA")
                 buf_c = io.BytesIO()
                 pil_img_c.save(buf_c, format="PNG")
                 modelo.area_cliente["assinatura_coordenador"] = buf_c.getvalue()
