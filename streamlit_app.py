@@ -1,7 +1,6 @@
 import io
 import streamlit as st
 from PIL import Image
-from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -69,38 +68,12 @@ class RelatorioModel:
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
-    modo = st.radio("Método de Assinatura", ["Desenhar na Tela", "Enviar Imagem"], key=f"modo_{key_prefix}", horizontal=True)
+    uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
     
     assinatura_bytes = None
-    
-    if modo == "Desenhar na Tela":
-        st.info("Desenhe a assinatura no quadro abaixo:")
-        canvas_result = st_canvas(
-            stroke_width=2,
-            stroke_color="#000000",
-            background_color="#ffffff",
-            height=150,
-            width=400,
-            drawing_mode="freedraw",
-            realtime_update=True,
-            update_streamlit=True,
-            key=f"canvas_{key_prefix}"
-        )
-        
-        if canvas_result is not None and canvas_result.image_data is not None:
-            try:
-                img_data = canvas_result.image_data
-                img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                assinatura_bytes = buf.getvalue()
-            except Exception:
-                assinatura_bytes = None
-    else:
-        uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
-        if uploaded_file is not None:
-            assinatura_bytes = uploaded_file.getvalue()
-            st.image(assinatura_bytes, width=200, caption="Assinatura Carregada")
+    if uploaded_file is not None:
+        assinatura_bytes = uploaded_file.getvalue()
+        st.image(assinatura_bytes, width=200, caption="Assinatura Carregada")
             
     return assinatura_bytes
 
