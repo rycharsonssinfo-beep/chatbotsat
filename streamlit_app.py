@@ -1,5 +1,6 @@
 import io
 import re
+import json
 import sqlite3
 from datetime import datetime, date
 import streamlit as st
@@ -113,7 +114,6 @@ def init_db():
             nome TEXT UNIQUE
         )
     """)
-    # Inserir padrões iniciais se a tabela estiver vazia
     cursor.execute("SELECT COUNT(*) FROM sistemas")
     if cursor.fetchone()[0] == 0:
         padroes = [
@@ -138,20 +138,29 @@ def carregar_sistemas_db() -> list:
     conn.close()
     return ["Selecione o sistema..."] + [r[0] for r in rows] + ["Outros"]
 
-def adicionar_sistema_db(novo_sistema: str):
+def adicionar_sistema_db(novo_sistema: str) -> bool:
     if novo_sistema and novo_sistema.strip():
         conn = sqlite3.connect("relatorios.db", check_same_thread=False)
         cursor = conn.cursor()
         try:
+            # Verifica se já existe ignorando maiúsculas/minúsculas
+            cursor.execute("SELECT id FROM sistemas WHERE LOWER(nome) = LOWER(?)", (novo_sistema.strip(),))
+            if cursor.fetchone():
+                conn.close()
+                return False  # Já existe
+            
             cursor.execute("INSERT INTO sistemas (nome) VALUES (?)", (novo_sistema.strip(),))
             conn.commit()
+            conn.close()
+            return True
         except sqlite3.IntegrityError:
-            pass
-        conn.close()
+            conn.close()
+            return False
+    return False
 
 
 # ==========================================
-# 3. AUXILIARES E MODELO DE DADOS
+# 3. AUXILIARES E VALIDAÇÕES
 # ==========================================
 def limpar_telefone(texto: str) -> str:
     if not texto:
@@ -162,6 +171,12 @@ def limpar_telefone(texto: str) -> str:
     elif len(apenas_numeros) == 10:
         return f"({apenas_numeros[:2]}) {apenas_numeros[2:6]}-{apenas_numeros[6:]}"
     return apenas_numeros
+
+def validar_email(email: str) -> bool:
+    if not email:
+        return True  # Opcional
+    padrao = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    return bool(re.match(padrao, email))
 
 
 class RelatorioModel:
@@ -207,7 +222,7 @@ class RelatorioModel:
             "whatsapp_coordenador": "",
             "assinatura_coordenador": None
         }
-        self.anexos = []  # Lista de bytes de imagens anexadas
+        self.anexos = []  # Lista de dicionários: [{"foto": bytes, "legenda": str}]
 
     def to_dict(self) -> dict:
         d = {
@@ -279,7 +294,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 # 5. INTERFACE PRINCIPAL
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
-st.markdown("Preencha os campos abaixo, adicione evidências e gere relatórios profissionais padronizados.")
+st.markdown("Preencha os campos abaixo, adicione evidências com legendas e gere relatórios profissionais.")
 
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -297,24 +312,37 @@ with st.sidebar:
     st.subheader("➕ Adicionar Novo Sistema")
     novo_sis_input = st.text_input("Nome do Sistema")
     if st.button("Cadastrar Sistema"):
-        if novo_sis_input.strip():
-            adicionar_sistema_db(novo_sis_input)
-            st.success(f"Sistema '{novo_sis_input}' adicionado!")
+        if adicionar_sistema_db(novo_sis_input):
+            st.success(f"Sistema '{novo_sis_input.strip()}' adicionado!")
             st.rerun()
         else:
-            st.warning("Digite o nome do sistema.")
+            st.warning("Sistema já existe ou o nome está vazio.")
 
     st.markdown("---")
     st.subheader("📂 Histórico de Relatórios")
     conn_h = sqlite3.connect("relatorios.db", check_same_thread=False)
     cursor_h = conn_h.cursor()
-    cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario FROM historico ORDER BY id DESC LIMIT 5")
+    cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
     historico_rows = cursor_h.fetchall()
     conn_h.close()
     
     if historico_rows:
-        for h_id, h_data, h_ent, h_sis, h_user in historico_rows:
+        for h_id, h_data, h_ent, h_sis, h_user, h_json in historico_rows:
             st.markdown(f"<small><b>{h_ent}</b> ({h_sis})<br/>👤 {h_user} — 📅 {h_data}</small>", unsafe_allow_html=True)
+            if st.button("📂 Carregar", key=f"carregar_{h_id}"):
+                try:
+                    dados_carregados = json.loads(h_json)
+                    novo_mod = RelatorioModel()
+                    novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
+                    novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
+                    novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
+                    novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
+                    novo_mod.anexos = dados_carregados.get("anexos", [])
+                    st.session_state["relatorio_model"] = novo_mod
+                    st.success("Relatório carregado com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao carregar: {e}")
             st.markdown("---")
     else:
         st.markdown("<small>Nenhum relatório salvo ainda.</small>", unsafe_allow_html=True)
@@ -422,9 +450,19 @@ with tab5:
     with st.container(border=True):
         st.subheader("📷 Evidências Fotográficas do Atendimento")
         uploaded_photos = st.file_uploader("Enviar imagens de evidência (Telas, comprovantes...)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+        
         if uploaded_photos:
-            modelo.anexos = [p.getvalue() for p in uploaded_photos]
-            st.success(f"{len(modelo.anexos)} foto(s) anexada(s) com sucesso!")
+            novos_anexos = []
+            for idx, p in enumerate(uploaded_photos):
+                st.markdown(f"**Foto {idx + 1}:** `{p.name}`")
+                c_img, c_leg = st.columns([1, 2])
+                with c_img:
+                    st.image(p, width=150)
+                with c_leg:
+                    legenda = st.text_input(f"Legenda para a foto {idx + 1}", key=f"legenda_foto_{idx}")
+                novos_anexos.append({"foto": p.getvalue(), "legenda": legenda})
+                st.markdown("---")
+            modelo.anexos = novos_anexos
 
 
 # ==========================================
@@ -526,17 +564,19 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     t_cli.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_cli)
     
-    # Anexos Fotográficos (se houver)
+    # Anexos Fotográficos com Legenda
     anexos = dados.get("anexos", [])
     if anexos:
         story.append(Spacer(1, 10))
         story.append(Paragraph("Evidências Fotográficas", section_style))
-        for idx, foto_bytes in enumerate(anexos):
+        for idx, item in enumerate(anexos):
             try:
+                foto_bytes = item.get("foto")
+                legenda = item.get("legenda", f"Evidência {idx+1}")
                 img_io = io.BytesIO(foto_bytes)
                 rl_img = RLImage(img_io, width=400, height=250, kind='proportional')
                 story.append(Spacer(1, 6))
-                story.append(Paragraph(f"<b>Evidência {idx+1}</b>", normal_style))
+                story.append(Paragraph(f"<b>Evidência {idx+1}:</b> {legenda}", normal_style))
                 story.append(Spacer(1, 4))
                 story.append(rl_img)
             except Exception:
@@ -564,14 +604,14 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
         erros.append("O campo **Entidade** é obrigatório.")
     if not ig_val.get("nome_usuario", "").strip():
         erros.append("O campo **Nome do Usuário** é obrigatório.")
+    if ig_val.get("email") and not validar_email(ig_val.get("email")):
+        erros.append("O formato do **E-mail** informado é inválido.")
         
     if erros:
         for err in erros:
             st.error(err)
     else:
         try:
-            # Salvar no Banco de Dados Histórico
-            import json
             conn = sqlite3.connect("relatorios.db", check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute(
