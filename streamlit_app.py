@@ -1,6 +1,7 @@
 import io
 import re
 import json
+import base64
 import sqlite3
 from datetime import datetime, date
 import streamlit as st
@@ -44,7 +45,6 @@ st.markdown("""
         background-color: #1446c2;
         color: white;
     }
-    /* Estilo compacto para os itens do histórico na barra lateral */
     .history-card {
         background-color: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -78,16 +78,6 @@ st.markdown("""
         background-color: #1b5ef7 !important;
         color: white !important;
         border-color: #1b5ef7 !important;
-    }
-    .stButton button[kind="primary"] {
-        background-color: #1b5ef7;
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 0.6rem 1.2rem;
-    }
-    .stButton button[kind="primary"]:hover {
-        background-color: #1446c2;
     }
     .signature-badge {
         background-color: #ecfdf5;
@@ -240,7 +230,7 @@ class RelatorioModel:
             "servico_executado": self.servico_executado,
             "resultado_atendimento": self.resultado_atendimento,
             "area_cliente": self.area_cliente.copy(),
-            "anexos": self.anexos
+            "anexos": []
         }
         d["informacoes_gerais"]["whatsapp"] = limpar_telefone(d["informacoes_gerais"].get("whatsapp", ""))
         d["area_cliente"]["whatsapp_usuario"] = limpar_telefone(d["area_cliente"].get("whatsapp_usuario", ""))
@@ -250,6 +240,22 @@ class RelatorioModel:
             d["informacoes_gerais"]["data_visita"] = d["informacoes_gerais"]["data_visita"].strftime("%d/%m/%Y")
         if isinstance(d["area_cliente"].get("data_termino"), date):
             d["area_cliente"]["data_termino"] = d["area_cliente"]["data_termino"].strftime("%d/%m/%Y")
+
+        # Serializar assinaturas em base64 para salvar com segurança no JSON
+        sig_u = self.area_cliente.get("assinatura_usuario")
+        if isinstance(sig_u, bytes):
+            d["area_cliente"]["assinatura_usuario"] = base64.b64encode(sig_u).decode('utf-8')
+        
+        sig_c = self.area_cliente.get("assinatura_coordenador")
+        if isinstance(sig_c, bytes):
+            d["area_cliente"]["assinatura_coordenador"] = base64.b64encode(sig_c).decode('utf-8')
+
+        # Serializar anexos em base64
+        for item in self.anexos:
+            foto_b = item.get("foto")
+            foto_enc = base64.b64encode(foto_b).decode('utf-8') if isinstance(foto_b, bytes) else foto_b
+            d["anexos"].append({"foto": foto_enc, "legenda": item.get("legenda", "")})
+
         return d
 
 
@@ -285,6 +291,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
                         background.save(buf, format="PNG")
                         modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
                         st.success(f"{titulo} salva com sucesso!")
+                        st.rerun()
                     else:
                         st.warning("O painel de desenho está vazio.")
                 except Exception as e:
@@ -295,9 +302,17 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
             st.success(f"{titulo} carregada com sucesso!")
 
-    if modelo_ref.area_cliente[campo_modelo]:
+    sig_val = modelo_ref.area_cliente.get(campo_modelo)
+    if sig_val:
         st.markdown('<div class="signature-badge">✅ Assinatura Registrada</div>', unsafe_allow_html=True)
-        st.image(modelo_ref.area_cliente[campo_modelo], width=180)
+        try:
+            if isinstance(sig_val, str):
+                sig_bytes = base64.b64decode(sig_val)
+            else:
+                sig_bytes = sig_val
+            st.image(sig_bytes, width=180)
+        except Exception:
+            pass
 
 
 # ==========================================
@@ -311,7 +326,6 @@ if "relatorio_model" not in st.session_state:
 
 modelo = st.session_state["relatorio_model"]
 
-# Barra Lateral Limpa e Funcional
 with st.sidebar:
     st.header("⚙️ Painel de Controle")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
@@ -323,7 +337,7 @@ with st.sidebar:
     novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex: Novo Sistema...")
     if st.button("Cadastrar", use_container_width=True):
         if adicionar_sistema_db(novo_sis_input):
-            st.success(f"Sistema adicionado!")
+            st.success("Sistema adicionado!")
             st.rerun()
         else:
             st.warning("Já existe ou nome vazio.")
@@ -358,7 +372,7 @@ with st.sidebar:
                             novo_mod = RelatorioModel()
                             novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
                             
-                            # Correção: Converter string de data para objeto date do Python
+                            # Correção de data_visita
                             data_v_str = novo_mod.informacoes_gerais.get("data_visita")
                             if isinstance(data_v_str, str):
                                 try:
@@ -373,6 +387,23 @@ with st.sidebar:
                             novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
                             
                             novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
+                            
+                            # Converter assinaturas de base64 string para bytes para evitar erro no st.image
+                            sig_u_load = novo_mod.area_cliente.get("assinatura_usuario")
+                            if isinstance(sig_u_load, str):
+                                try:
+                                    novo_mod.area_cliente["assinatura_usuario"] = base64.b64decode(sig_u_load)
+                                except Exception:
+                                    pass
+
+                            sig_c_load = novo_mod.area_cliente.get("assinatura_coordenador")
+                            if isinstance(sig_c_load, str):
+                                try:
+                                    novo_mod.area_cliente["assinatura_coordenador"] = base64.b64decode(sig_c_load)
+                                except Exception:
+                                    pass
+
+                            # Correção de data_termino
                             data_t_str = novo_mod.area_cliente.get("data_termino")
                             if isinstance(data_t_str, str):
                                 try:
@@ -383,12 +414,26 @@ with st.sidebar:
                                     except ValueError:
                                         novo_mod.area_cliente["data_termino"] = date.today()
 
-                            novo_mod.anexos = dados_carregados.get("anexos", [])
+                            # Carregar anexos convertendo base64 de volta para bytes
+                            anexos_raw = dados_carregados.get("anexos", [])
+                            anexos_formatados = []
+                            for item in anexos_raw:
+                                f_b64 = item.get("foto")
+                                if isinstance(f_b64, str):
+                                    try:
+                                        f_bytes = base64.b64decode(f_b64)
+                                    except Exception:
+                                        f_bytes = f_b64
+                                else:
+                                    f_bytes = f_b64
+                                anexos_formatados.append({"foto": f_bytes, "legenda": item.get("legenda", "")})
+                            
+                            novo_mod.anexos = anexos_formatados
                             st.session_state["relatorio_model"] = novo_mod
                             st.success("Carregado!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Erro: {e}")
+                            st.error(f"Erro ao carregar: {e}")
                 st.markdown("")
         else:
             st.markdown("<small style='color: #94a3b8;'>Nenhum registro encontrado.</small>", unsafe_allow_html=True)
@@ -598,8 +643,32 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     # Área do Cliente
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("Área do Cliente e Validação", section_style))
-    sig_u = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=140, height=50) if ac.get("assinatura_usuario") else Paragraph("<i>(Sem assinatura)</i>", normal_style)
-    sig_c = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=140, height=50) if ac.get("assinatura_coordenador") else Paragraph("<i>(Sem assinatura)</i>", normal_style)
+    
+    sig_u_data = ac.get("assinatura_usuario")
+    if sig_u_data:
+        try:
+            if isinstance(sig_u_data, str):
+                sig_u_bytes = base64.b64decode(sig_u_data)
+            else:
+                sig_u_bytes = sig_u_data
+            sig_u = RLImage(io.BytesIO(sig_u_bytes), width=140, height=50)
+        except Exception:
+            sig_u = Paragraph("<i>(Assinatura indisponível)</i>", normal_style)
+    else:
+        sig_u = Paragraph("<i>(Sem assinatura)</i>", normal_style)
+
+    sig_c_data = ac.get("assinatura_coordenador")
+    if sig_c_data:
+        try:
+            if isinstance(sig_c_data, str):
+                sig_c_bytes = base64.b64decode(sig_c_data)
+            else:
+                sig_c_bytes = sig_c_data
+            sig_c = RLImage(io.BytesIO(sig_c_bytes), width=140, height=50)
+        except Exception:
+            sig_c = Paragraph("<i>(Assinatura indisponível)</i>", normal_style)
+    else:
+        sig_c = Paragraph("<i>(Sem assinatura)</i>", normal_style)
     
     cliente_data = [
         [Paragraph(f"<b>Local:</b> {ac.get('local', '')}", normal_style), Paragraph(f"<b>Data do Término:</b> {ac.get('data_termino', '')}", normal_style)],
@@ -619,7 +688,11 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         story.append(Paragraph("Evidências Fotográficas", section_style))
         for idx, item in enumerate(anexos):
             try:
-                foto_bytes = item.get("foto")
+                foto_val = item.get("foto")
+                if isinstance(foto_val, str):
+                    foto_bytes = base64.b64decode(foto_val)
+                else:
+                    foto_bytes = foto_val
                 legenda = item.get("legenda", f"Evidência {idx+1}")
                 img_io = io.BytesIO(foto_bytes)
                 rl_img = RLImage(img_io, width=400, height=250, kind='proportional')
@@ -697,8 +770,8 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
 
             st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
             base64_pdf = io.BytesIO(pdf_bytes)
-            import base64
-            base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
+            import base64 as b64_mod
+            base64_encoded = b64_mod.b64encode(base64_pdf.read()).decode('utf-8')
             pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
 
