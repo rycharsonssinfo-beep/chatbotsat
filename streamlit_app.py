@@ -2,6 +2,7 @@ import io
 from datetime import datetime, date
 import streamlit as st
 from PIL import Image
+import re
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -26,6 +27,16 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background-color: #0d1527;
         color: #ffffff;
+    }
+    /* Correção do botão na barra lateral para cor escura legível */
+    [data-testid="stSidebar"] button {
+        background-color: #1b2a4a !important;
+        color: #ffffff !important;
+        border: 1px solid #2d3f66 !important;
+    }
+    [data-testid="stSidebar"] button:hover {
+        background-color: #26385f !important;
+        color: #ffffff !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -128,7 +139,9 @@ with tab1:
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"], key="ig_nome_usuario")
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"], key="ig_email")
         with col2:
-            modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"], key="ig_whatsapp")
+            raw_whatsapp = st.text_input("WhatsApp (Apenas números)", value=modelo.informacoes_gerais["whatsapp"], key="ig_whatsapp")
+            modelo.informacoes_gerais["whatsapp"] = re.sub(r'\D', '', raw_whatsapp)
+            
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], key="ig_data_visita")
             modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"], key="ig_resp")
             modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"], key="ig_periodo")
@@ -187,23 +200,33 @@ with tab4:
             st.markdown("### 👤 Usuário")
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"], key="ac_local")
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"], key="ac_nome_usuario")
-            modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whats_usuario")
+            
+            raw_w_u = st.text_input("WhatsApp do Usuário (Apenas números)", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whats_usuario")
+            modelo.area_cliente["whatsapp_usuario"] = re.sub(r'\D', '', raw_w_u)
             
             up_u = st.file_uploader("Enviar imagem da Assinatura do Usuário", type=["png", "jpg", "jpeg"], key="up_u")
             if up_u:
                 modelo.area_cliente["assinatura_usuario"] = up_u.getvalue()
-                st.image(up_u, width=150)
+            
+            if modelo.area_cliente["assinatura_usuario"]:
+                st.markdown("**Assinatura atualizada (Usuário):**")
+                st.image(modelo.area_cliente["assinatura_usuario"], width=180)
                 
         with col_c2:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], key="ac_data_termino")
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"], key="ac_nome_coord")
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whats_coord")
+            
+            raw_w_c = st.text_input("WhatsApp do Coordenador (Apenas números)", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whats_coord")
+            modelo.area_cliente["whatsapp_coordenador"] = re.sub(r'\D', '', raw_w_c)
             
             up_c = st.file_uploader("Enviar imagem da Assinatura do Coordenador", type=["png", "jpg", "jpeg"], key="up_c")
             if up_c:
                 modelo.area_cliente["assinatura_coordenador"] = up_c.getvalue()
-                st.image(up_c, width=150)
+                
+            if modelo.area_cliente["assinatura_coordenador"]:
+                st.markdown("**Assinatura atualizada (Coordenador):**")
+                st.image(modelo.area_cliente["assinatura_coordenador"], width=180)
 
 
 # ==========================================
@@ -250,7 +273,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         box = f'<font color="{cor_accent.hexval()}"><b>[X]</b></font>' if checked else f'<font color="{cor_muted.hexval()}">[  ]</font>'
         return f'{box} {label}'
 
-    # Cabeçalho
     story.append(Paragraph("Portal de Treinamentos", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
@@ -422,7 +444,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_cli)
     
-    # Rodapé
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     story.append(Spacer(1, 8))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Emitido em {agora_str}", footer_style))
