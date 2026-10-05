@@ -83,6 +83,7 @@ def capturar_assinatura(titulo: str, key_prefix: str):
             height=150,
             width=400,
             drawing_mode="freedraw",
+            update_streamlit=True,  # Obrigatório para evitar o RuntimeError
             key=f"canvas_{key_prefix}"
         )
         if canvas_result.image_data is not None:
