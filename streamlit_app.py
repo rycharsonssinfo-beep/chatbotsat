@@ -71,13 +71,13 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA TÁTIL / UPLOAD
+# 2. COMPONENTE DE ASSINATURA SEGURO
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
     
     metodo = st.radio(
-        f"Método de Assinatura ({titulo})", 
+        f"Método ({titulo})", 
         ["Desenhar na Tela", "Enviar Imagem"], 
         horizontal=True, 
         key=f"metodo_{key_prefix}"
@@ -86,34 +86,38 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     assinatura_bytes = None
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small>Desenhe a assinatura de {titulo} no quadro abaixo (compatível com toque/mouse):</small>", unsafe_allow_html=True)
+        st.markdown(f"<small>Desenhe a assinatura abaixo (use o dedo no celular/tablet ou o mouse):</small>", unsafe_allow_html=True)
         
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",
-            stroke_width=2,
-            stroke_color="#000000",
-            background_color="#FFFFFF",
-            height=140,
-            width=380,
-            drawing_mode="freedraw",
-            key=f"canvas_{key_prefix}"
-        )
-        
-        if canvas_result.image_data is not None:
-            img_array = canvas_result.image_data
-            if img_array.any():
-                pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                background.paste(pil_img, mask=pil_img.split()[3])
-                
-                buf = io.BytesIO()
-                background.save(buf, format="PNG")
-                assinatura_bytes = buf.getvalue()
+        try:
+            canvas_result = st_canvas(
+                fill_color="rgba(255, 165, 0, 0.3)",
+                stroke_width=2,
+                stroke_color="#000000",
+                background_color="#FFFFFF",
+                height=130,
+                width=350,
+                drawing_mode="freedraw",
+                key=f"canvas_{key_prefix}"
+            )
+            
+            # Tratamento seguro para evitar o erro de image_data_url
+            if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
+                img_array = canvas_result.image_data
+                if img_array.any():
+                    pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                    background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                    background.paste(pil_img, mask=pil_img.split()[3])
+                    
+                    buf = io.BytesIO()
+                    background.save(buf, format="PNG")
+                    assinatura_bytes = buf.getvalue()
+        except Exception as e:
+            st.warning(f"Modo de desenho indisponível no momento. Utilize a opção 'Enviar Imagem' se preferir.")
     else:
-        uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
+        uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
             assinatura_bytes = uploaded_file.getvalue()
-            st.image(assinatura_bytes, width=200, caption="Assinatura Carregada")
+            st.image(assinatura_bytes, width=180, caption="Assinatura Carregada")
             
     return assinatura_bytes
 
@@ -141,7 +145,7 @@ with st.sidebar:
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
 
-# Organização por Abas Modernas
+# Organização por Abas
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Informações Gerais", 
     "⚙️ Serviços Executados", 
@@ -212,27 +216,32 @@ with tab3:
 
 with tab4:
     with st.container(border=True):
-        st.subheader("Área do Cliente e Assinaturas")
+        st.subheader("Área do Cliente e Assinaturas (Usuário e Coordenador)")
+        
+        # COLUNA 1: USUÁRIO
         col_c1, col_c2 = st.columns(2)
         with col_c1:
-            st.markdown("#### Informações do Usuário")
+            st.markdown("### 👤 Usuário")
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
-            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário (Área do Cliente)", value=modelo.area_cliente["nome_usuario"])
+            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
             
             sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
             if sig_u:
                 modelo.area_cliente["assinatura_usuario"] = sig_u
+                st.success("Assinatura do Usuário capturada!")
                 
+        # COLUNA 2: COORDENADOR
         with col_c2:
-            st.markdown("#### Informações do Coordenador")
+            st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
             
-            sig_c = capturar_assinatura("Assinatura do Coordenador do setor", "coordenador")
+            sig_c = capturar_assinatura("Assinatura do Coordenador", "coordenador")
             if sig_c:
                 modelo.area_cliente["assinatura_coordenador"] = sig_c
+                st.success("Assinatura do Coordenador capturada!")
 
 
 # ==========================================
@@ -341,7 +350,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story.append(Spacer(1, 4))
     story.append(Paragraph(f"<b>Observações (Resultado):</b> {ra.get('observacoes', '')}", normal_style))
     
-    # Área do Cliente
+    # Área do Cliente com as duas assinaturas
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
