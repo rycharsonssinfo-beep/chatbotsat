@@ -478,7 +478,7 @@ with tab1:
 
 with tab2:
     with st.container(border=True):
-        st.subheader("⚙️️ Registro do Serviço Executado")
+        st.subheader("⚙ Registro do Serviço Executado")
         c1, c2, c3 = st.columns(3)
         with c1:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
@@ -571,8 +571,12 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
+    # Carrega a logo da web em bytes para o ReportLab ler perfeitamente sem erro de URL
     try:
-        logo_pdf = RLImage("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png", width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+        import urllib.request
+        req = urllib.request.urlopen("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png")
+        logo_bytes = req.read()
+        logo_pdf = RLImage(io.BytesIO(logo_bytes), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
     except Exception:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
