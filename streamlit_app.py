@@ -65,7 +65,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA DIGITAL
+# 2. COMPONENTE DE ASSINATURA DIGITAL (CORRIGIDO)
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
@@ -76,18 +76,22 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     if modo == "Desenhar na Tela":
         st.info("Desenhe a assinatura no quadro abaixo:")
         canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",
+            fill_color="rgba(255, 255, 255, 1)",
             stroke_width=2,
             stroke_color="#000000",
             background_color="#FFFFFF",
             height=150,
             width=400,
             drawing_mode="freedraw",
-            update_streamlit=True,  # Obrigatório para evitar o RuntimeError
+            update_streamlit=True,
             key=f"canvas_{key_prefix}"
         )
-        if canvas_result.image_data is not None:
-            img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+        
+        # Validação segura para evitar o RuntimeError quando o canvas estiver vazio
+        if canvas_result is not None and canvas_result.image_data is not None:
+            img_data = canvas_result.image_data
+            # Verifica se houve alteração/desenho real antes de processar
+            img = Image.fromarray(img_data.astype('uint8'), 'RGBA')
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             assinatura_bytes = buf.getvalue()
