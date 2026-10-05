@@ -30,6 +30,7 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background-color: #0d1527;
         color: #ffffff;
+        padding-top: 1rem;
     }
     [data-testid="stSidebar"] .stButton button {
         background-color: #1b5ef7;
@@ -37,10 +38,21 @@ st.markdown("""
         border: none;
         border-radius: 8px;
         font-weight: 600;
+        transition: all 0.2s ease;
     }
     [data-testid="stSidebar"] .stButton button:hover {
         background-color: #1446c2;
         color: white;
+    }
+    /* Estilo compacto para os itens do histórico na barra lateral */
+    .history-card {
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        color: #cbd5e1;
     }
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
         background-color: #ffffff;
@@ -289,7 +301,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. INTERFACE PRINCIPAL E DASHBOARD
+# 5. INTERFACE PRINCIPAL E BARRA LATERAL REORGANIZADA
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
 st.markdown("Preencha os campos abaixo, adicione evidências com legendas e gere relatórios profissionais.")
@@ -299,7 +311,7 @@ if "relatorio_model" not in st.session_state:
 
 modelo = st.session_state["relatorio_model"]
 
-# Barra Lateral: Gestão, Busca no Histórico e Dashboard Simples
+# Barra Lateral Limpa e Funcional
 with st.sidebar:
     st.header("⚙️ Painel de Controle")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
@@ -307,65 +319,58 @@ with st.sidebar:
         st.rerun()
         
     st.markdown("---")
-    st.subheader("➕ Adicionar Novo Sistema")
-    novo_sis_input = st.text_input("Nome do Sistema")
-    if st.button("Cadastrar Sistema"):
+    st.subheader("➕ Novo Sistema")
+    novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex: Novo Sistema...")
+    if st.button("Cadastrar", use_container_width=True):
         if adicionar_sistema_db(novo_sis_input):
-            st.success(f"Sistema '{novo_sis_input.strip()}' adicionado!")
+            st.success(f"Sistema adicionado!")
             st.rerun()
         else:
-            st.warning("Sistema já existe ou o nome está vazio.")
+            st.warning("Já existe ou nome vazio.")
 
     st.markdown("---")
-    st.subheader("📊 Indicadores Rápidos")
+    st.subheader("📂 Histórico de Relatórios")
+    termo_busca = st.text_input("🔍 Filtrar entidade/usuário", placeholder="Digite para buscar...")
+    
     try:
-        conn_d = sqlite3.connect("relatorios.db", check_same_thread=False)
-        cursor_d = conn_d.cursor()
-        cursor_d.execute("SELECT COUNT(*) FROM historico")
-        total_rel = cursor_d.fetchone()[0]
-        cursor_d.execute("SELECT sistema, COUNT(*) as qtd FROM historico GROUP BY sistema ORDER BY qtd DESC LIMIT 1")
-        top_sys = cursor_d.fetchone()
-        conn_d.close()
+        conn_h = sqlite3.connect("relatorios.db", check_same_thread=False)
+        cursor_h = conn_h.cursor()
+        if termo_busca:
+            cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico WHERE entidade LIKE ? OR nome_usuario LIKE ? ORDER BY id DESC LIMIT 10", (f"%{termo_busca}%", f"%{termo_busca}%"))
+        else:
+            cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
+        historico_rows = cursor_h.fetchall()
+        conn_h.close()
         
-        st.metric("Total de Relatórios", total_rel)
-        if top_sys:
-            st.metric("Sistema Mais Atendido", top_sys[0], f"{top_sys[1]} atendimentos")
+        if historico_rows:
+            for h_id, h_data, h_ent, h_sis, h_user, h_json in historico_rows:
+                with st.container():
+                    st.markdown(f"""
+                    <div class="history-card">
+                        <b>{h_ent}</b><br>
+                        🛠️ {h_sis or 'N/D'}<br>
+                        👤 {h_user} | 📅 {h_data}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("Carregar", key=f"carregar_{h_id}", use_container_width=True):
+                        try:
+                            dados_carregados = json.loads(h_json)
+                            novo_mod = RelatorioModel()
+                            novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
+                            novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
+                            novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
+                            novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
+                            novo_mod.anexos = dados_carregados.get("anexos", [])
+                            st.session_state["relatorio_model"] = novo_mod
+                            st.success("Carregado!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+                st.markdown("")
+        else:
+            st.markdown("<small style='color: #94a3b8;'>Nenhum registro encontrado.</small>", unsafe_allow_html=True)
     except Exception:
-        st.info("Sem dados estatísticos ainda.")
-
-    st.markdown("---")
-    st.subheader("📂 Histórico & Busca")
-    termo_busca = st.text_input("🔍 Buscar por Entidade/Usuário")
-    
-    conn_h = sqlite3.connect("relatorios.db", check_same_thread=False)
-    cursor_h = conn_h.cursor()
-    if termo_busca:
-        cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico WHERE entidade LIKE ? OR nome_usuario LIKE ? ORDER BY id DESC", (f"%{termo_busca}%", f"%{termo_busca}%"))
-    else:
-        cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
-    historico_rows = cursor_h.fetchall()
-    conn_h.close()
-    
-    if historico_rows:
-        for h_id, h_data, h_ent, h_sis, h_user, h_json in historico_rows:
-            st.markdown(f"<small><b>{h_ent}</b> ({h_sis})<br/>👤 {h_user} — 📅 {h_data}</small>", unsafe_allow_html=True)
-            if st.button("📂 Carregar", key=f"carregar_{h_id}"):
-                try:
-                    dados_carregados = json.loads(h_json)
-                    novo_mod = RelatorioModel()
-                    novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
-                    novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
-                    novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
-                    novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
-                    novo_mod.anexos = dados_carregados.get("anexos", [])
-                    st.session_state["relatorio_model"] = novo_mod
-                    st.success("Relatório carregado com sucesso!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao carregar: {e}")
-            st.markdown("---")
-    else:
-        st.markdown("<small>Nenhum relatório encontrado.</small>", unsafe_allow_html=True)
+        st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
 # Abas do Formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -648,9 +653,8 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
             conn.close()
 
             pdf_bytes = gerar_pdf_relatorio(dados_val)
-            st.success("Relatório gerado e salvo no histórico com sucesso!")
+            st.success("Relatório gerado e salvo com sucesso!")
             
-            # Aba de download e Ações Pós-Geração (WhatsApp e Pré-visualização)
             col_dl, col_wpp = st.columns(2)
             with col_dl:
                 st.download_button(
@@ -668,7 +672,6 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
                     link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
                     st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">💬 Enviar Resumo via WhatsApp</button></a>', unsafe_allow_html=True)
 
-            # Pré-visualização do PDF na tela usando iframe do Streamlit
             st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
             base64_pdf = io.BytesIO(pdf_bytes)
             import base64
