@@ -216,7 +216,6 @@ with tab4:
                 height=130,
                 width=350,
                 drawing_mode="freedraw",
-                realtime_update=True,
                 key="canvas_usuario"
             )
             if canvas_result_u.image_data is not None:
@@ -243,7 +242,6 @@ with tab4:
                 height=130,
                 width=350,
                 drawing_mode="freedraw",
-                realtime_update=True,
                 key="canvas_coordenador"
             )
             if canvas_result_c.image_data is not None:
