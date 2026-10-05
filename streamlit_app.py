@@ -2,7 +2,6 @@ import io
 from datetime import datetime, date
 import streamlit as st
 from PIL import Image
-from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -10,7 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==========================================
-# 1. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL (PORTAL)
+# 1. CONFIGURAÇÃO DA PÁGINA
 # ==========================================
 st.set_page_config(
     page_title="Relatório de Atendimento Presencial — Portal",
@@ -27,50 +26,6 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background-color: #0d1527;
         color: #ffffff;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background-color: #1b5ef7;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background-color: #1446c2;
-        color: white;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        border: 1px solid #e2e8f0 !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        background-color: #ffffff;
-        border-radius: 8px 8px 0 0;
-        color: #475569;
-        font-weight: 600;
-        border: 1px solid #e2e8f0;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #1b5ef7 !important;
-        color: white !important;
-    }
-    .stButton button[kind="primary"] {
-        background-color: #1b5ef7;
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 0.5rem 1rem;
-    }
-    .stButton button[kind="primary"]:hover {
-        background-color: #1446c2;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -138,61 +93,10 @@ class RelatorioModel:
 
 
 # ==========================================
-# 3. COMPONENTE DE ASSINATURA SEGURO
-# ==========================================
-def capturar_assinatura(titulo: str, key_prefix: str):
-    st.markdown(f"**{titulo}**")
-    
-    metodo = st.radio(
-        f"Método ({titulo})", 
-        ["Desenhar na Tela", "Enviar Imagem"], 
-        horizontal=True, 
-        key=f"metodo_{key_prefix}"
-    )
-    
-    assinatura_bytes = None
-    
-    if metodo == "Desenhar na Tela":
-        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo (use o dedo no celular/tablet ou o mouse):</small>", unsafe_allow_html=True)
-        
-        try:
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 165, 0, 0.3)",
-                stroke_width=2,
-                stroke_color="#000000",
-                background_color="#FFFFFF",
-                height=130,
-                width=350,
-                drawing_mode="freedraw",
-                key=f"canvas_{key_prefix}"
-            )
-            
-            if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
-                img_array = canvas_result.image_data
-                if img_array.any():
-                    pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                    background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                    background.paste(pil_img, mask=pil_img.split()[3])
-                    
-                    buf = io.BytesIO()
-                    background.save(buf, format="PNG")
-                    assinatura_bytes = buf.getvalue()
-        except Exception:
-            st.warning("Modo de desenho indisponível. Utilize a opção 'Enviar Imagem' se preferir.")
-    else:
-        uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
-        if uploaded_file is not None:
-            assinatura_bytes = uploaded_file.getvalue()
-            st.image(assinatura_bytes, width=180, caption="Assinatura Carregada")
-            
-    return assinatura_bytes
-
-
-# ==========================================
-# 4. APLICAÇÃO PRINCIPAL
+# 3. APLICAÇÃO PRINCIPAL
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
-st.markdown("Preencha as abas abaixo para registrar o atendimento técnico e gerar o documento oficial.")
+st.markdown("Preencha os dados abaixo para registrar o atendimento técnico e gerar o PDF formatado.")
 
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -218,7 +122,7 @@ with tab1:
         st.subheader("Dados Principais e Contato")
         col1, col2 = st.columns(2)
         with col1:
-            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
+            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara...)*", value=modelo.informacoes_gerais["entidade"])
             modelo.informacoes_gerais["sistema"] = st.text_input("Sistema", value=modelo.informacoes_gerais["sistema"])
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
@@ -245,7 +149,7 @@ with tab2:
             modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"])
         with col4:
             modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"])
-            modelo.servico_executado["outros"] = st.checkbox("Outros (inserir nas observações)", value=modelo.servico_executado["outros"])
+            modelo.servico_executado["outros"] = st.checkbox("Outros", value=modelo.servico_executado["outros"])
         with col5:
             modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
 
@@ -266,17 +170,17 @@ with tab3:
     with st.container(border=True):
         st.subheader("Resultado do Atendimento")
         modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
-        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
+        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior", value=modelo.resultado_atendimento["pendencias_posterior"])
         modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
-        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para que o operador/chefe do setor solucione depois", value=modelo.resultado_atendimento["pendencias_operador"])
-        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
-        modelo.resultado_atendimento["outros"] = st.checkbox("Outros (inserir abaixo)", value=modelo.resultado_atendimento["outros"])
+        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para o operador/chefe do setor", value=modelo.resultado_atendimento["pendencias_operador"])
+        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões", value=modelo.resultado_atendimento["cartoes"])
+        modelo.resultado_atendimento["outros"] = st.checkbox("Outros", value=modelo.resultado_atendimento["outros"])
         
-        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado do Atendimento", value=modelo.resultado_atendimento["observacoes"])
+        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
 
 with tab4:
     with st.container(border=True):
-        st.subheader("Área do Cliente e Assinaturas (Usuário e Coordenador)")
+        st.subheader("Área do Cliente e Assinaturas")
         
         col_c1, col_c2 = st.columns(2)
         with col_c1:
@@ -285,10 +189,10 @@ with tab4:
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
             
-            sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
-            if sig_u:
-                modelo.area_cliente["assinatura_usuario"] = sig_u
-                st.success("Assinatura do Usuário capturada com sucesso!")
+            up_u = st.file_uploader("Enviar imagem da Assinatura do Usuário", type=["png", "jpg", "jpeg"], key="up_u")
+            if up_u:
+                modelo.area_cliente["assinatura_usuario"] = up_u.getvalue()
+                st.image(up_u, width=150)
                 
         with col_c2:
             st.markdown("### 👔 Coordenador")
@@ -296,60 +200,33 @@ with tab4:
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
             
-            sig_c = capturar_assinatura("Assinatura do Coordenador", "coordenador")
-            if sig_c:
-                modelo.area_cliente["assinatura_coordenador"] = sig_c
-                st.success("Assinatura do Coordenador capturada com sucesso!")
+            up_c = st.file_uploader("Enviar imagem da Assinatura do Coordenador", type=["png", "jpg", "jpeg"], key="up_c")
+            if up_c:
+                modelo.area_cliente["assinatura_coordenador"] = up_c.getvalue()
+                st.image(up_c, width=150)
 
 
 # ==========================================
-# 5. GERADOR DE PDF ALTAMENTE REFINADO E PROFISSIONAL
+# 4. GERADOR DE PDF REFINADO
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
-    # Margens balanceadas de 25 unidades
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=25, bottomMargin=25)
     story = []
     
     styles = getSampleStyleSheet()
     
-    # Paleta de Cores do Portal S&S
-    cor_primaria = colors.HexColor('#0d1527')   # Azul escuro corporativo
-    cor_accent = colors.HexColor('#1b5ef7')     # Azul vivo do portal
-    cor_texto = colors.HexColor('#1e293b')      # Cinza escuro para texto
-    cor_muted = colors.HexColor('#64748b')      # Cinza claro para subtítulos/rodapé
-    cor_borda = colors.HexColor('#cbd5e1')      # Borda sutil
-    cor_fundo_bloco = colors.HexColor('#f8fafc')# Fundo levemente acinzentado para caixas
+    cor_primaria = colors.HexColor('#0d1527')
+    cor_accent = colors.HexColor('#1b5ef7')
+    cor_texto = colors.HexColor('#1e293b')
+    cor_muted = colors.HexColor('#64748b')
+    cor_borda = colors.HexColor('#cbd5e1')
+    cor_fundo_bloco = colors.HexColor('#f8fafc')
     
-    # Estilos customizados limpos
-    header_org_style = ParagraphStyle(
-        'HeaderOrg',
-        parent=styles['Normal'],
-        fontSize=8,
-        textColor=cor_muted,
-        fontName='Helvetica',
-        spaceAfter=1
-    )
+    header_org_style = ParagraphStyle('HeaderOrg', parent=styles['Normal'], fontSize=8, textColor=cor_muted, spaceAfter=1)
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=15, textColor=cor_primaria, fontName='Helvetica-Bold', spaceAfter=2)
+    subtitle_style = ParagraphStyle('SubtitleStyle', parent=styles['Normal'], fontSize=8.5, textColor=cor_muted, spaceAfter=10)
     
-    title_style = ParagraphStyle(
-        'TitleStyle',
-        parent=styles['Heading1'],
-        fontSize=15,
-        textColor=cor_primaria,
-        fontName='Helvetica-Bold',
-        spaceAfter=2
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'SubtitleStyle',
-        parent=styles['Normal'],
-        fontSize=8.5,
-        textColor=cor_muted,
-        fontName='Helvetica',
-        spaceAfter=10
-    )
-    
-    # Cabeçalho de seções elegante com fundo escuro e cantos limpos
     section_style = ParagraphStyle(
         'SectionStyle',
         parent=styles['Heading2'],
@@ -365,41 +242,20 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         bottomPadding=4
     )
     
-    normal_style = ParagraphStyle(
-        'NormalCustom',
-        parent=styles['Normal'],
-        fontSize=8.5,
-        leading=11,
-        textColor=cor_texto,
-        fontName='Helvetica'
-    )
-    
-    bold_style = ParagraphStyle(
-        'BoldCustom',
-        parent=normal_style,
-        fontName='Helvetica-Bold'
-    )
-    
-    footer_style = ParagraphStyle(
-        'FooterStyle',
-        parent=styles['Normal'],
-        fontSize=7.5,
-        textColor=cor_muted,
-        fontName='Helvetica',
-        spaceBefore=10
-    )
+    normal_style = ParagraphStyle('NormalCustom', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=cor_texto, fontName='Helvetica')
+    bold_style = ParagraphStyle('BoldCustom', parent=normal_style, fontName='Helvetica-Bold')
+    footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=7.5, textColor=cor_muted, spaceBefore=10)
 
-    # Função auxiliar para desenhar caixas de seleção bonitas em HTML/ReportLab
     def checkbox_html(checked: bool, label: str) -> str:
         box = f'<font color="{cor_accent.hexval()}"><b>[X]</b></font>' if checked else f'<font color="{cor_muted.hexval()}">[  ]</font>'
         return f'{box} {label}'
 
-    # 1. Cabeçalho Institucional
+    # Cabeçalho
     story.append(Paragraph("Portal de Treinamentos", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
     
-    # 2. Informações Gerais
+    # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
     story.append(Paragraph("<b>Informações Gerais</b>", section_style))
     
@@ -428,7 +284,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_info)
     
-    # Descrição em Caixa Destaque
     desc_text = ig.get('descricao', '').strip()
     if desc_text:
         story.append(Spacer(1, 4))
@@ -443,19 +298,17 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ]))
         story.append(desc_table)
     
-    # 3. Registro do Serviço Executado
+    # Serviços Executados
     se = dados.get("servico_executado", {})
     story.append(Paragraph("<b>Registro do Serviço Executado</b>", section_style))
     
-    c_imp = checkbox_html(se.get('implantacao'), "Implantação")
-    c_tre = checkbox_html(se.get('treinamento'), "Treinamento")
-    c_dem = checkbox_html(se.get('demonstracao_sistema'), "Demonstração de Sistema")
-    c_vis = checkbox_html(se.get('visita'), "Visita")
-    c_out = checkbox_html(se.get('outros'), "Outros")
-    
     serv_data = [
-        [Paragraph(c_imp, normal_style), Paragraph(c_tre, normal_style), Paragraph(c_dem, normal_style)],
-        [Paragraph(c_vis, normal_style), Paragraph(c_out, normal_style), Paragraph("", normal_style)]
+        [Paragraph(checkbox_html(se.get('implantacao'), "Implantação"), normal_style),
+         Paragraph(checkbox_html(se.get('treinamento'), "Treinamento"), normal_style),
+         Paragraph(checkbox_html(se.get('demonstracao_sistema'), "Demonstração de Sistema"), normal_style)],
+        [Paragraph(checkbox_html(se.get('visita'), "Visita"), normal_style),
+         Paragraph(checkbox_html(se.get('outros'), "Outros"), normal_style),
+         Paragraph("", normal_style)]
     ]
     t_serv = Table(serv_data, colWidths=[186, 186, 188])
     t_serv.setStyle(TableStyle([
@@ -496,24 +349,17 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ]))
         story.append(t_obs_s)
     
-    # 4. Resultado do Atendimento
+    # Resultado
     ra = dados.get("resultado_atendimento", {})
     story.append(Paragraph("<b>Resultado do Atendimento</b>", section_style))
     
-    r1 = checkbox_html(ra.get('perfeito_funcionamento'), "O Sistema ficou em perfeito funcionamento, sem nenhuma pendência")
-    r2 = checkbox_html(ra.get('pendencias_posterior'), "Existem pendências para solução posterior (listar em observações)")
-    r3 = checkbox_html(ra.get('treinamento_sucesso'), "Treinamento efetuado com sucesso")
-    r4 = checkbox_html(ra.get('pendencias_operador'), "Existem pendências para que o operador/chefe do setor solucione depois")
-    r5 = checkbox_html(ra.get('cartoes'), "Existem cartões (listar em observações)")
-    r6 = checkbox_html(ra.get('outros'), "Outros (inserir abaixo)")
-    
     res_data = [
-        [Paragraph(r1, normal_style)],
-        [Paragraph(r2, normal_style)],
-        [Paragraph(r3, normal_style)],
-        [Paragraph(r4, normal_style)],
-        [Paragraph(r5, normal_style)],
-        [Paragraph(r6, normal_style)]
+        [Paragraph(checkbox_html(ra.get('perfeito_funcionamento'), "O Sistema ficou em perfeito funcionamento, sem nenhuma pendência"), normal_style)],
+        [Paragraph(checkbox_html(ra.get('pendencias_posterior'), "Existem pendências para solução posterior (listar em observações)"), normal_style)],
+        [Paragraph(checkbox_html(ra.get('treinamento_sucesso'), "Treinamento efetuado com sucesso"), normal_style)],
+        [Paragraph(checkbox_html(ra.get('pendencias_operador'), "Existem pendências para que o operador/chefe do setor solucione depois"), normal_style)],
+        [Paragraph(checkbox_html(ra.get('cartoes'), "Existem cartões (listar em observações)"), normal_style)],
+        [Paragraph(checkbox_html(ra.get('outros'), "Outros"), normal_style)]
     ]
     t_res = Table(res_data, colWidths=[560])
     t_res.setStyle(TableStyle([
@@ -539,15 +385,15 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ]))
         story.append(t_obs_r)
     
-    # 5. Área do Cliente e Assinaturas
+    # Área do Cliente
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
-    sig_u_img = Paragraph("<i>(Sem assinatura informada)</i>", normal_style)
+    sig_u_img = Paragraph("<i>(Sem assinatura)</i>", normal_style)
     if ac.get("assinatura_usuario"):
         sig_u_img = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=140, height=45)
         
-    sig_c_img = Paragraph("<i>(Sem assinatura informada)</i>", normal_style)
+    sig_c_img = Paragraph("<i>(Sem assinatura)</i>", normal_style)
     if ac.get("assinatura_coordenador"):
         sig_c_img = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=140, height=45)
         
@@ -576,7 +422,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_cli)
     
-    # 6. Rodapé Oficial
+    # Rodapé
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     story.append(Spacer(1, 8))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Emitido em {agora_str}", footer_style))
@@ -588,7 +434,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 6. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
+# 5. BOTÃO DE GERAÇÃO
 # ==========================================
 st.markdown("---")
 
