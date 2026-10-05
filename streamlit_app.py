@@ -294,7 +294,7 @@ with tab4:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_coordenador if "whatsapp_coordenador" in modelo.area_cliente else model_wa := modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
             
             sig_c = capturar_assinatura("Assinatura do Coordenador", "coordenador")
             if sig_c:
@@ -312,7 +312,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     
     styles = getSampleStyleSheet()
     
-    # Estilos padronizados exatamente com o layout do Portal de Treinamentos
     header_org_style = ParagraphStyle(
         'HeaderOrg',
         parent=styles['Normal'],
@@ -365,13 +364,11 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         spaceBefore=15
     )
 
-    # Cabeçalho Institucional (Idêntico ao PDF do Portal)
     story.append(Paragraph("Portal de Treinamentos", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Registro oficial de compromissos e atividades executadas em campo.", subtitle_style))
     story.append(Spacer(1, 4))
     
-    # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
     story.append(Paragraph("<b>Informações Gerais</b>", section_style))
     
@@ -399,7 +396,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Descrição:</b> {ig.get('descricao', '')}", normal_style))
     
-    # Serviço Executado
     se = dados.get("servico_executado", {})
     story.append(Paragraph("<b>Registro do Serviço Executado</b>", section_style))
     
@@ -422,7 +418,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Observações (Serviço):</b> {se.get('observacoes', '')}", normal_style))
     
-    # Resultado
     ra = dados.get("resultado_atendimento", {})
     story.append(Paragraph("<b>Resultado do Atendimento</b>", section_style))
     
@@ -443,7 +438,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"<b>Observações (Resultado):</b> {ra.get('observacoes', '')}", normal_style))
     
-    # Área do Cliente (Assinaturas)
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
@@ -476,7 +470,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(t_cli)
     
-    # Rodapé Oficial do Portal
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     story.append(Spacer(1, 10))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Emitido em {agora_str}", footer_style))
