@@ -179,6 +179,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             width=350,
             drawing_mode="freedraw",
             update_streamlit=True,
+            return_image_data=True,  # <--- Parâmetro obrigatório para liberar os dados da imagem
             key=f"canvas_{key_prefix}"
         )
         
