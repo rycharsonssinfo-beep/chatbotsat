@@ -7,6 +7,7 @@ from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
+import urllib.request
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -95,7 +96,26 @@ st.markdown("""
 
 
 # ==========================================
-# 2. BANCO DE DADOS E PERSISTÊNCIA
+# 2. CARREGAMENTO SEGURO DA LOGO (BYTES)
+# ==========================================
+@st.cache_data
+def obter_logo_bytes() -> bytes:
+    url = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
+    try:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req) as response:
+            return response.read()
+    except Exception:
+        return b""
+
+LOGO_BYTES = obter_logo_bytes()
+
+
+# ==========================================
+# 3. BANCO DE DADOS E PERSISTÊNCIA
 # ==========================================
 def init_db():
     conn = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
@@ -160,7 +180,7 @@ def adicionar_sistema_db(novo_sistema: str) -> bool:
 
 
 # ==========================================
-# 3. AUXILIARES E MODELO DE DADOS
+# 4. AUXILIARES E MODELO DE DADOS
 # ==========================================
 def limpar_telefone(texto: str) -> str:
     if not texto:
@@ -258,7 +278,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. CAPTURA DE ASSINATURA
+# 5. CAPTURA DE ASSINATURA
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -314,7 +334,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 
 
 # ==========================================
-# 5. SIDEBAR E GERENCIAMENTO
+# 6. SIDEBAR E GERENCIAMENTO
 # ==========================================
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -420,12 +440,12 @@ with st.sidebar:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
 
-# Cabeçalho Principal com a Logo Oficial Pronta
+# Cabeçalho Principal com a Logo Oficial via Bytes
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
-    try:
-        st.image("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png", width=130)
-    except Exception:
+    if LOGO_BYTES:
+        st.image(LOGO_BYTES, width=130)
+    else:
         st.markdown("<div style='background:#0d1527; color:white; padding:12px; border-radius:8px; text-align:center; font-weight:bold; font-size:0.8rem;'>Grupo S&S</div>", unsafe_allow_html=True)
 
 with col_title:
@@ -552,7 +572,7 @@ with tab5:
 
 
 # ==========================================
-# 6. GERAÇÃO DO PDF PROFISSIONAL
+# 7. GERAÇÃO DO PDF PROFISSIONAL
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -571,13 +591,9 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
-    # Carrega a logo da web em bytes para o ReportLab ler perfeitamente sem erro de URL
-    try:
-        import urllib.request
-        req = urllib.request.urlopen("https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png")
-        logo_bytes = req.read()
-        logo_pdf = RLImage(io.BytesIO(logo_bytes), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
-    except Exception:
+    if LOGO_BYTES:
+        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+    else:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
     titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
@@ -706,7 +722,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 7. BOTÃO DE GERAÇÃO E PRÉ-VISUALIZAÇÃO
+# 8. BOTÃO DE GERAÇÃO E PRÉ-VISUALIZAÇÃO
 # ==========================================
 st.markdown("---")
 if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_width=True):
