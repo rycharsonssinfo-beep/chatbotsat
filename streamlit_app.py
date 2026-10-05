@@ -75,6 +75,17 @@ st.markdown("""
     .stButton button[kind="primary"]:hover {
         background-color: #1446c2;
     }
+    .signature-badge {
+        background-color: #ecfdf5;
+        color: #065f46;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-top: 8px;
+        border: 1px solid #a7f3d0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -155,7 +166,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. COMPONENTE DE ASSINATURA ROBUSTO
+# 4. COMPONENTE DE ASSINATURA ROBUSTO COM FEEDBACK VISUAL
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -179,7 +190,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             width=350,
             drawing_mode="freedraw",
             update_streamlit=True,
-            return_image_data=True,  # <--- Parâmetro obrigatório para liberar os dados da imagem
+            return_image_data=True,
             key=f"canvas_{key_prefix}"
         )
         
@@ -207,8 +218,9 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
             st.success(f"{titulo} carregada com sucesso!")
 
-    # Exibe a prévia imediatamente se já estiver gravado no modelo
+    # Exibe a prévia e o selo visual imediato se já estiver gravado no modelo
     if modelo_ref.area_cliente[campo_modelo]:
+        st.markdown('<div class="signature-badge">✅ Assinatura Registrada com Sucesso</div>', unsafe_allow_html=True)
         st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
 
 
@@ -239,7 +251,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
     with st.container(border=True):
-        st.subheader("Dados Principais e Contato")
+        st.subheader("📌 Dados Principais e Contato")
         col1, col2 = st.columns(2)
         with col1:
             modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
@@ -264,7 +276,7 @@ with tab1:
 
 with tab2:
     with st.container(border=True):
-        st.subheader("Registro do Serviço Executado")
+        st.subheader("⚙️ Registro do Serviço Executado")
         col3, col4, col5 = st.columns(3)
         with col3:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
@@ -290,7 +302,7 @@ with tab2:
 
 with tab3:
     with st.container(border=True):
-        st.subheader("Resultado do Atendimento")
+        st.subheader("📊 Resultado do Atendimento")
         modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
         modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
         modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
@@ -302,7 +314,7 @@ with tab3:
 
 with tab4:
     with st.container(border=True):
-        st.subheader("Área do Cliente e Assinaturas (Usuário e Coordenador)")
+        st.subheader("✍️ Área do Cliente e Assinaturas (Usuário e Coordenador)")
         
         col_c1, col_c2 = st.columns(2)
         with col_c1:
