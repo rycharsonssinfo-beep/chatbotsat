@@ -218,7 +218,6 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
             st.success(f"{titulo} carregada com sucesso!")
 
-    # Exibe a prévia e o selo visual imediato se já estiver gravado no modelo
     if modelo_ref.area_cliente[campo_modelo]:
         st.markdown('<div class="signature-badge">✅ Assinatura Registrada com Sucesso</div>', unsafe_allow_html=True)
         st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
@@ -263,7 +262,9 @@ with tab1:
             raw_wpp = st.text_input("WhatsApp (Ex: (XX) 9XXXX-XXXX)", value=modelo.informacoes_gerais["whatsapp"])
             modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
 
-            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"])
+            # Corrigido para formato brasileiro DD/MM/YYYY
+            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
+            
             modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
             modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
             
@@ -329,7 +330,9 @@ with tab4:
             
         with col_c2:
             st.markdown("### 👔 Coordenador")
-            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
+            # Corrigido para formato brasileiro DD/MM/YYYY
+            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
+            
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             
             raw_wpp_c = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
