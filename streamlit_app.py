@@ -75,12 +75,11 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     
     if modo == "Desenhar na Tela":
         st.info("Desenhe a assinatura no quadro abaixo:")
-        # Parâmetros ajustados para evitar erros de leitura inicial do canvas
         canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 1)",
+            fill_color="#ffffff",
             stroke_width=2,
             stroke_color="#000000",
-            background_color="#FFFFFF",
+            background_color="#ffffff",
             height=150,
             width=400,
             drawing_mode="freedraw",
@@ -89,7 +88,6 @@ def capturar_assinatura(titulo: str, key_prefix: str):
             key=f"canvas_{key_prefix}"
         )
         
-        # Verificação segura se o canvas possui dados válidos de desenho
         if canvas_result is not None and canvas_result.image_data is not None:
             try:
                 img_data = canvas_result.image_data
