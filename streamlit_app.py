@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import datetime, date
 import streamlit as st
 from PIL import Image
@@ -77,7 +78,18 @@ st.markdown("""
 
 
 # ==========================================
-# 2. MODELO DE DADOS
+# 2. FUNÇÃO AUXILIAR DE VALIDAÇÃO DE TELEFONE
+# ==========================================
+def limpar_telefone(texto: str) -> str:
+    """Remove caracteres indesejados, permitindo apenas números e símbolos comuns de telefone."""
+    if not texto:
+        return ""
+    # Mantém apenas dígitos, espaços, parênteses, hífen e o sinal de mais (+)
+    return re.sub(r'[^0-9\s\(\)\-\+]', '', texto)
+
+
+# ==========================================
+# 3. MODELO DE DADOS
 # ==========================================
 class RelatorioModel:
     def __init__(self):
@@ -130,6 +142,11 @@ class RelatorioModel:
             "resultado_atendimento": self.resultado_atendimento,
             "area_cliente": self.area_cliente.copy()
         }
+        # Aplica limpeza final nos telefones antes de exportar/validar
+        d["informacoes_gerais"]["whatsapp"] = limpar_telefone(d["informacoes_gerais"].get("whatsapp", ""))
+        d["area_cliente"]["whatsapp_usuario"] = limpar_telefone(d["area_cliente"].get("whatsapp_usuario", ""))
+        d["area_cliente"]["whatsapp_coordenador"] = limpar_telefone(d["area_cliente"].get("whatsapp_coordenador", ""))
+
         if isinstance(d["informacoes_gerais"].get("data_visita"), date):
             d["informacoes_gerais"]["data_visita"] = d["informacoes_gerais"]["data_visita"].strftime("%d/%m/%Y")
         if isinstance(d["area_cliente"].get("data_termino"), date):
@@ -138,7 +155,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 3. COMPONENTE DE ASSINATURA SEGURO
+# 4. COMPONENTE DE ASSINATURA SEGURO
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
@@ -182,14 +199,13 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
         if uploaded_file is not None:
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
 
-    # Mostra status ou pré-visualização se já houver assinatura salva
     if modelo_ref.area_cliente[campo_modelo]:
         st.success(f"Assinatura de {titulo.lower()} registrada com sucesso!")
         st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
 
 
 # ==========================================
-# 4. APLICAÇÃO PRINCIPAL
+# 5. APLICAÇÃO PRINCIPAL
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
 st.markdown("Preencha as abas abaixo para registrar o atendimento técnico e gerar o documento oficial.")
@@ -224,7 +240,9 @@ with tab1:
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
-            modelo.informacoes_gerais["whatsapp"] = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
+            raw_wpp = st.text_input("WhatsApp (Ex: (XX) 9XXXX-XXXX)", value=modelo.informacoes_gerais["whatsapp"])
+            modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
+
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"])
             modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
             modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
@@ -283,7 +301,9 @@ with tab4:
             st.markdown("### 👤 Usuário")
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
-            modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            
+            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
             
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
             
@@ -291,13 +311,15 @@ with tab4:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
+            
+            raw_wpp_c = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
             
             capturar_assinatura("Assinatura do Coordenador", "coordenador", modelo, "assinatura_coordenador")
 
 
 # ==========================================
-# 5. GERADOR DE PDF NO PADRÃO DO PORTAL S&S
+# 6. GERADOR DE PDF NO PADRÃO DO PORTAL S&S
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -475,7 +497,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 6. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
+# 7. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
 # ==========================================
 st.markdown("---")
 
