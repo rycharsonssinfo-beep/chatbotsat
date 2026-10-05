@@ -2,6 +2,7 @@ import io
 from datetime import date
 import streamlit as st
 from PIL import Image
+from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -62,7 +63,6 @@ class RelatorioModel:
             "resultado_atendimento": self.resultado_atendimento,
             "area_cliente": self.area_cliente.copy()
         }
-        # Converter datas para string DD/MM/AAAA para o PDF
         if isinstance(d["informacoes_gerais"].get("data_visita"), date):
             d["informacoes_gerais"]["data_visita"] = d["informacoes_gerais"]["data_visita"].strftime("%d/%m/%Y")
         if isinstance(d["area_cliente"].get("data_termino"), date):
@@ -71,16 +71,53 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA DIGITAL
+# 2. COMPONENTE DE ASSINATURA EM TELA / UPLOAD
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
-    uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
+    
+    metodo = st.radio(
+        f"Método de Assinatura ({titulo})", 
+        ["Desenhar na Tela", "Enviar Imagem"], 
+        horizontal=True, 
+        key=f"metodo_{key_prefix}"
+    )
     
     assinatura_bytes = None
-    if uploaded_file is not None:
-        assinatura_bytes = uploaded_file.getvalue()
-        st.image(assinatura_bytes, width=200, caption="Assinatura Carregada")
+    
+    if metodo == "Desenhar na Tela":
+        st.markdown(f"<small>Desenhe a assinatura de {titulo} no quadro abaixo:</small>", unsafe_allow_html=True)
+        
+        # Componente de Canvas para assinatura digital tátil/mouse
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",
+            stroke_width=2,
+            stroke_color="#000000",
+            background_color="#FFFFFF",
+            height=150,
+            width=400,
+            drawing_mode="freedraw",
+            key=f"canvas_{key_prefix}"
+        )
+        
+        # Se houver desenho no canvas, converte para bytes PNG
+        if canvas_result.image_data is not None:
+            # Verifica se o utilizador desenhou algo (compara se não está totalmente branco)
+            img_array = canvas_result.image_data
+            if img_array.any():
+                pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                # Converter RGBA para RGB com fundo branco para o PDF
+                background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                background.paste(pil_img, mask=pil_img.split()[3]) # Usar canal alpha como máscara
+                
+                buf = io.BytesIO()
+                background.save(buf, format="PNG")
+                assinatura_bytes = buf.getvalue()
+    else:
+        uploaded_file = st.file_uploader(f"Enviar imagem da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
+        if uploaded_file is not None:
+            assinatura_bytes = uploaded_file.getvalue()
+            st.image(assinatura_bytes, width=200, caption="Assinatura Carregada")
             
     return assinatura_bytes
 
@@ -97,7 +134,6 @@ st.set_page_config(
 st.title("📋 Portal de Atendimento - Grupo S&S")
 st.markdown("Preencha as abas abaixo para gerar o **Relatório de Atendimento Presencial** oficial.")
 
-# Inicializar estado da sessão
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
 
@@ -187,6 +223,7 @@ with tab4:
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário (Área do Cliente)", value=modelo.area_cliente["nome_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            
             sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
             if sig_u:
                 modelo.area_cliente["assinatura_usuario"] = sig_u
@@ -196,6 +233,7 @@ with tab4:
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             modelo.area_cliente["whatsapp_coordenador"] = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
+            
             sig_c = capturar_assinatura("Assinatura do Coordenador do setor", "coordenador")
             if sig_c:
                 modelo.area_cliente["assinatura_coordenador"] = sig_c
@@ -300,7 +338,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     res_text = f"{r1} O Sistema ficou em perfeito funcionamento, sem nenhuma pendência<br/>" \
                f"{r2} Existem pendências para solução posterior (listar em observações)<br/>" \
                f"{r3} Treinamento efetuado com sucesso<br/>" \
-               f"{r4} Existem pendências para que o operador/chefe do setor solucione depois<br/>" \
+               f"{r4} Existen pendências para que o operador/chefe do setor solucione depois<br/>" \
                f"{r5} Existem cartões (listar em observações)<br/>" \
                f"{r6} Outros (inserir abaixo)"
     story.append(Paragraph(res_text, normal_style))
@@ -346,7 +384,6 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 st.markdown("---")
 
 if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=True):
-    # Validação de campos obrigatórios
     dados_val = modelo.to_dict()
     ig_val = dados_val["informacoes_gerais"]
     
