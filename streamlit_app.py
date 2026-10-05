@@ -1,5 +1,6 @@
 import io
 import re
+import sqlite3
 from datetime import datetime, date
 import streamlit as st
 from PIL import Image
@@ -91,51 +92,78 @@ st.markdown("""
 
 
 # ==========================================
-# 2. LISTAS E AUXILIARES
+# 2. BANCO DE DADOS E PERSISTÊNCIA LOCAL
 # ==========================================
-LISTA_SISTEMAS = [
-    "Selecione o sistema...",
-    "Contabilidade",
-    "Fluxus",
-    "Folha de Pagamento",
-    "Nota Fiscal Eletrônica",
-    "Portal da Transparência",
-    "SAT Web",
-    "SAT WEB SPU",
-    "SIG - Almoxarifado",
-    "SIG - Doações",
-    "SIG - Licitação",
-    "SIG - Merenda",
-    "SIG - Patrimônio",
-    "SIG - PPA",
-    "SigWeb - Almoxarifado",
-    "SigWeb - Geral",
-    "SigWeb - Orçamento",
-    "SigWeb - PPA",
-    "SigWeb - Social",
-    "Licitação",
-    "Veículos Web",
-    "Outros"
-]
+def init_db():
+    conn = sqlite3.connect("relatorios.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS historico (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_criacao TEXT,
+            entidade TEXT,
+            sistema TEXT,
+            nome_usuario TEXT,
+            dados_json TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sistemas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE
+        )
+    """)
+    # Inserir padrões iniciais se a tabela estiver vazia
+    cursor.execute("SELECT COUNT(*) FROM sistemas")
+    if cursor.fetchone()[0] == 0:
+        padroes = [
+            "Contabilidade", "Fluxus", "Folha de Pagamento", "Nota Fiscal Eletrônica",
+            "Portal da Transparência", "SAT Web", "SAT WEB SPU", "SIG - Almoxarifado",
+            "SIG - Doações", "SIG - Licitação", "SIG - Merenda", "SIG - Patrimônio",
+            "SIG - PPA", "SigWeb - Almoxarifado", "SigWeb - Geral", "SigWeb - Orçamento",
+            "SigWeb - PPA", "SigWeb - Social", "Licitação", "Veículos Web"
+        ]
+        for s in padroes:
+            cursor.execute("INSERT OR IGNORE INTO sistemas (nome) VALUES (?)", (s,))
+        conn.commit()
+    conn.close()
 
+init_db()
+
+def carregar_sistemas_db() -> list:
+    conn = sqlite3.connect("relatorios.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome FROM sistemas ORDER BY nome")
+    rows = cursor.fetchall()
+    conn.close()
+    return ["Selecione o sistema..."] + [r[0] for r in rows] + ["Outros"]
+
+def adicionar_sistema_db(novo_sistema: str):
+    if novo_sistema and novo_sistema.strip():
+        conn = sqlite3.connect("relatorios.db", check_same_thread=False)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO sistemas (nome) VALUES (?)", (novo_sistema.strip(),))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+        conn.close()
+
+
+# ==========================================
+# 3. AUXILIARES E MODELO DE DADOS
+# ==========================================
 def limpar_telefone(texto: str) -> str:
-    """Remove absolutamente tudo o que não for número."""
     if not texto:
         return ""
     apenas_numeros = re.sub(r'[^0-9]', '', texto)
-    
-    # Opcional: Formatar visualmente se tiver tamanho de telefone válido (ex: 11 dígitos)
     if len(apenas_numeros) == 11:
         return f"({apenas_numeros[:2]}) {apenas_numeros[2]} {apenas_numeros[3:7]}-{apenas_numeros[7:]}"
     elif len(apenas_numeros) == 10:
         return f"({apenas_numeros[:2]}) {apenas_numeros[2:6]}-{apenas_numeros[6:]}"
-    
     return apenas_numeros
 
 
-# ==========================================
-# 3. MODELO DE DADOS
-# ==========================================
 class RelatorioModel:
     def __init__(self):
         self.informacoes_gerais = {
@@ -179,13 +207,15 @@ class RelatorioModel:
             "whatsapp_coordenador": "",
             "assinatura_coordenador": None
         }
+        self.anexos = []  # Lista de bytes de imagens anexadas
 
     def to_dict(self) -> dict:
         d = {
             "informacoes_gerais": self.informacoes_gerais.copy(),
             "servico_executado": self.servico_executado,
             "resultado_atendimento": self.resultado_atendimento,
-            "area_cliente": self.area_cliente.copy()
+            "area_cliente": self.area_cliente.copy(),
+            "anexos": self.anexos
         }
         d["informacoes_gerais"]["whatsapp"] = limpar_telefone(d["informacoes_gerais"].get("whatsapp", ""))
         d["area_cliente"]["whatsapp_usuario"] = limpar_telefone(d["area_cliente"].get("whatsapp_usuario", ""))
@@ -199,21 +229,13 @@ class RelatorioModel:
 
 
 # ==========================================
-# 4. COMPONENTE DE ASSINATURA COM FEEDBACK
+# 4. CAPTURA DE ASSINATURA
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     st.markdown(f"**{titulo}**")
-    
-    metodo = st.radio(
-        f"Método ({titulo})", 
-        ["Desenhar na Tela", "Enviar Imagem"], 
-        horizontal=True, 
-        key=f"metodo_{key_prefix}"
-    )
+    metodo = st.radio(f"Método ({titulo})", ["Desenhar na Tela", "Enviar Imagem"], horizontal=True, key=f"metodo_{key_prefix}")
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo e clique no botão para salvar:</small>", unsafe_allow_html=True)
-        
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",
             stroke_width=2,
@@ -226,59 +248,84 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             return_image_data=True,
             key=f"canvas_{key_prefix}"
         )
-        
         if st.button(f"Salvar {titulo}", key=f"btn_salvar_{key_prefix}"):
-            if canvas_result is not None:
+            if canvas_result is not None and canvas_result.image_data is not None:
                 try:
-                    if canvas_result.image_data is not None:
-                        img_array = canvas_result.image_data
-                        if img_array.any():
-                            pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                            background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                            background.paste(pil_img, mask=pil_img.split()[3])
-                            
-                            buf = io.BytesIO()
-                            background.save(buf, format="PNG")
-                            modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-                            st.success(f"{titulo} salva com sucesso!")
-                        else:
-                            st.warning("O painel de desenho está vazio.")
+                    img_array = canvas_result.image_data
+                    if img_array.any():
+                        pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                        background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                        background.paste(pil_img, mask=pil_img.split()[3])
+                        buf = io.BytesIO()
+                        background.save(buf, format="PNG")
+                        modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+                        st.success(f"{titulo} salva com sucesso!")
+                    else:
+                        st.warning("O painel de desenho está vazio.")
                 except Exception as e:
-                    st.error(f"Erro ao capturar o desenho: {e}")
+                    st.error(f"Erro ao capturar desenho: {e}")
     else:
-        uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
+        uploaded_file = st.file_uploader(f"Enviar arquivo ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
             modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
             st.success(f"{titulo} carregada com sucesso!")
 
     if modelo_ref.area_cliente[campo_modelo]:
-        st.markdown('<div class="signature-badge">✅ Assinatura Registrada com Sucesso</div>', unsafe_allow_html=True)
-        st.image(modelo_ref.area_cliente[campo_modelo], width=180, caption=f"Prévia - {titulo}")
+        st.markdown('<div class="signature-badge">✅ Assinatura Registrada</div>', unsafe_allow_html=True)
+        st.image(modelo_ref.area_cliente[campo_modelo], width=180)
 
 
 # ==========================================
-# 5. APLICAÇÃO PRINCIPAL
+# 5. INTERFACE PRINCIPAL
 # ==========================================
 st.title("📋 Relatório de Atendimento Presencial")
-st.markdown("Preencha as abas abaixo para registrar o atendimento técnico e gerar o documento oficial.")
+st.markdown("Preencha os campos abaixo, adicione evidências e gere relatórios profissionais padronizados.")
 
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
 
 modelo = st.session_state["relatorio_model"]
 
+# Barra Lateral: Gestão e Histórico
 with st.sidebar:
-    st.header("Navegação")
-    st.markdown("---")
+    st.header("⚙️ Painel de Controle")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
+        
+    st.markdown("---")
+    st.subheader("➕ Adicionar Novo Sistema")
+    novo_sis_input = st.text_input("Nome do Sistema")
+    if st.button("Cadastrar Sistema"):
+        if novo_sis_input.strip():
+            adicionar_sistema_db(novo_sis_input)
+            st.success(f"Sistema '{novo_sis_input}' adicionado!")
+            st.rerun()
+        else:
+            st.warning("Digite o nome do sistema.")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+    st.markdown("---")
+    st.subheader("📂 Histórico de Relatórios")
+    conn_h = sqlite3.connect("relatorios.db", check_same_thread=False)
+    cursor_h = conn_h.cursor()
+    cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario FROM historico ORDER BY id DESC LIMIT 5")
+    historico_rows = cursor_h.fetchall()
+    conn_h.close()
+    
+    if historico_rows:
+        for h_id, h_data, h_ent, h_sis, h_user in historico_rows:
+            st.markdown(f"<small><b>{h_ent}</b> ({h_sis})<br/>👤 {h_user} — 📅 {h_data}</small>", unsafe_allow_html=True)
+            st.markdown("---")
+    else:
+        st.markdown("<small>Nenhum relatório salvo ainda.</small>", unsafe_allow_html=True)
+
+# Abas do Formulário
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Informações Gerais", 
-    "⚙️ Serviços Executados", 
-    "📊 Resultado", 
-    "✍️ Área do Cliente"
+    "⚙️ Serviços", 
+    "📊 Resultados", 
+    "✍️ Assinaturas",
+    "📷 Evidências (Fotos)"
 ])
 
 with tab1:
@@ -286,21 +333,22 @@ with tab1:
         st.subheader("📌 Dados Principais e Contato")
         col1, col2 = st.columns(2)
         with col1:
-            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
+            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara...)*", value=modelo.informacoes_gerais["entidade"])
             
+            lista_sistemas_atual = carregar_sistemas_db()
             sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
             try:
-                idx_sistema = LISTA_SISTEMAS.index(sistema_atual)
+                idx_sis = lista_sistemas_atual.index(sistema_atual)
             except ValueError:
-                idx_sistema = 0
-            sistema_escolhido = st.selectbox("Sistema", LISTA_SISTEMAS, index=idx_sistema)
-            modelo.informacoes_gerais["sistema"] = "" if sistema_escolhido == "Selecione o sistema..." else sistema_escolhido
+                idx_sis = 0
+            sistema_esc = st.selectbox("Sistema", lista_sistemas_atual, index=idx_sis)
+            modelo.informacoes_gerais["sistema"] = "" if sistema_esc == "Selecione o sistema..." else sistema_esc
 
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
             modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
-            raw_wpp = st.text_input("WhatsApp (Apenas números, ex: 85999999999)", value=modelo.informacoes_gerais["whatsapp"])
+            raw_wpp = st.text_input("WhatsApp (Apenas números)", value=modelo.informacoes_gerais["whatsapp"])
             modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
 
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
@@ -317,84 +365,77 @@ with tab1:
 with tab2:
     with st.container(border=True):
         st.subheader("⚙️ Registro do Serviço Executado")
-        col3, col4, col5 = st.columns(3)
-        with col3:
+        c1, c2, c3 = st.columns(3)
+        with c1:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
             modelo.servico_executado["treinamento"] = st.checkbox("Treinamento", value=modelo.servico_executado["treinamento"])
-        with col4:
+        with c2:
             modelo.servico_executado["demonstracao_sistema"] = st.checkbox("Demonstração de Sistema", value=modelo.servico_executado["demonstracao_sistema"])
-            modelo.servico_executado["outros"] = st.checkbox("Outros (inserir nas observações)", value=modelo.servico_executado["outros"])
-        with col5:
+            modelo.servico_executado["outros"] = st.checkbox("Outros", value=modelo.servico_executado["outros"])
+        with c3:
             modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
 
         if modelo.servico_executado["visita"]:
             st.markdown("##### Tipo de Visita:")
-            tipo_atual = modelo.servico_executado.get("tipo_visita", [])
-            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in tipo_atual)
-            tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in tipo_atual)
-            
-            tipos_selecionados = []
-            if rt: tipos_selecionados.append("Relacionamento Técnica")
-            if tp: tipos_selecionados.append("Técnica Preventiva")
-            modelo.servico_executado["tipo_visita"] = tipos_selecionados
+            t_vis = modelo.servico_executado.get("tipo_visita", [])
+            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in t_vis)
+            tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in t_vis)
+            sel_t = []
+            if rt: sel_t.append("Relacionamento Técnica")
+            if tp: sel_t.append("Técnica Preventiva")
+            modelo.servico_executado["tipo_visita"] = sel_t
 
-        modelo.servico_executado["observacoes"] = st.text_area("Observações sobre o Serviço Executado", value=modelo.servico_executado["observacoes"])
+        modelo.servico_executado["observacoes"] = st.text_area("Observações sobre o Serviço", value=modelo.servico_executado["observacoes"])
 
 with tab3:
     with st.container(border=True):
         st.subheader("📊 Resultado do Atendimento")
         modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
-        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
+        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior", value=modelo.resultado_atendimento["pendencias_posterior"])
         modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
-        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para que o operador/chefe do setor solucione depois", value=modelo.resultado_atendimento["pendencias_operador"])
-        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
-        modelo.resultado_atendimento["outros"] = st.checkbox("Outros (inserir abaixo)", value=modelo.resultado_atendimento["outros"])
+        modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para o operador/chefe do setor", value=modelo.resultado_atendimento["pendencias_operador"])
+        modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões", value=modelo.resultado_atendimento["cartoes"])
+        modelo.resultado_atendimento["outros"] = st.checkbox("Outros resultados", value=modelo.resultado_atendimento["outros"])
         
-        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado do Atendimento", value=modelo.resultado_atendimento["observacoes"])
+        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
 
 with tab4:
     with st.container(border=True):
-        st.subheader("✍️ Área do Cliente e Assinaturas (Usuário e Coordenador)")
-        
+        st.subheader("✍️ Área do Cliente e Validação")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             st.markdown("### 👤 Usuário")
             modelo.area_cliente["local"] = st.text_input("Local", value=modelo.area_cliente["local"])
-            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
-            
-            raw_wpp_u = st.text_input("WhatsApp do Usuário (Apenas números)", value=modelo.area_cliente["whatsapp_usuario"])
+            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário (Validação)", value=modelo.area_cliente["nome_usuario"])
+            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
-            
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
-            
         with col_c2:
             st.markdown("### 👔 Coordenador")
-            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
-            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            
-            raw_wpp_c = st.text_input("WhatsApp do Coordenador (Apenas números)", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["data_termino"] = st.date_input("Data de Término", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
+            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador", value=modelo.area_cliente["nome_coordenador"])
+            raw_wpp_c = st.text_input("WhatsApp do Coordenador", value=modelo.area_cliente["whatsapp_coordenador"])
             modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
-            
             capturar_assinatura("Assinatura do Coordenador", "coordenador", modelo, "assinatura_coordenador")
+
+with tab5:
+    with st.container(border=True):
+        st.subheader("📷 Evidências Fotográficas do Atendimento")
+        uploaded_photos = st.file_uploader("Enviar imagens de evidência (Telas, comprovantes...)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+        if uploaded_photos:
+            modelo.anexos = [p.getvalue() for p in uploaded_photos]
+            st.success(f"{len(modelo.anexos)} foto(s) anexada(s) com sucesso!")
 
 
 # ==========================================
-# 6. GERADOR DE PDF PROFISSIONAL
+# 6. GERAÇÃO DO PDF PROFISSIONAL COM ANEXOS
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, 
-        pagesize=letter, 
-        rightMargin=36, 
-        leftMargin=36, 
-        topMargin=36, 
-        bottomMargin=36
-    )
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
     
     styles = getSampleStyleSheet()
-    
     primary_color = colors.HexColor('#0d1527')
     accent_color = colors.HexColor('#1b5ef7')
     border_color = colors.HexColor('#cbd5e1')
@@ -402,133 +443,44 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     text_dark = colors.HexColor('#1e293b')
     text_muted = colors.HexColor('#64748b')
     
-    header_org_style = ParagraphStyle(
-        'HeaderOrg',
-        parent=styles['Normal'],
-        fontSize=8,
-        fontName='Helvetica-Bold',
-        textColor=accent_color,
-        textTransform='uppercase',
-        spaceAfter=2
-    )
-    
-    title_style = ParagraphStyle(
-        'TitleStyle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        textColor=primary_color,
-        fontName='Helvetica-Bold',
-        spaceAfter=4
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'SubtitleStyle',
-        parent=styles['Normal'],
-        fontSize=9.5,
-        textColor=text_muted,
-        spaceAfter=14
-    )
-    
-    section_style = ParagraphStyle(
-        'SectionStyle',
-        parent=styles['Heading2'],
-        fontSize=10,
-        textColor=colors.white,
-        fontName='Helvetica-Bold',
-        backColor=primary_color,
-        spaceBefore=12,
-        spaceAfter=8,
-        leftIndent=6,
-        rightIndent=6,
-        topPadding=6,
-        bottomPadding=6
-    )
-    
-    normal_style = ParagraphStyle(
-        'CustomNormal',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=12,
-        textColor=text_dark,
-        fontName='Helvetica'
-    )
-    
-    footer_style = ParagraphStyle(
-        'FooterStyle',
-        parent=styles['Normal'],
-        fontSize=8,
-        textColor=text_muted,
-        spaceBefore=20,
-        alignment=1
-    )
+    header_org_style = ParagraphStyle('HeaderOrg', parent=styles['Normal'], fontSize=8, fontName='Helvetica-Bold', textColor=accent_color, textTransform='uppercase', spaceAfter=2)
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=18, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=4)
+    subtitle_style = ParagraphStyle('SubtitleStyle', parent=styles['Normal'], fontSize=9.5, textColor=text_muted, spaceAfter=14)
+    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=10, textColor=colors.white, fontName='Helvetica-Bold', backColor=primary_color, spaceBefore=12, spaceAfter=8, leftIndent=6, rightIndent=6, topPadding=6, bottomPadding=6)
+    normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=9, leading=12, textColor=text_dark, fontName='Helvetica')
+    footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=20, alignment=1)
 
     story.append(Paragraph("Portal de Treinamentos &bull; Suporte Técnico", header_org_style))
     story.append(Paragraph("Relatório de Atendimento Presencial", title_style))
     story.append(Paragraph("Documento oficial de registro de compromissos, suporte e atividades executadas em campo.", subtitle_style))
     
+    # Informações Gerais
     ig = dados.get("informacoes_gerais", {})
     story.append(Paragraph("Informações Gerais", section_style))
-    
     info_data = [
-        [Paragraph(f"<b>Entidade:</b> {ig.get('entidade', '')}", normal_style),
-         Paragraph(f"<b>Sistema:</b> {ig.get('sistema', '')}", normal_style)],
-        [Paragraph(f"<b>Setor:</b> {ig.get('setor', '')}", normal_style),
-         Paragraph(f"<b>Data da Visita:</b> {ig.get('data_visita', '')}", normal_style)],
-        [Paragraph(f"<b>Nome do Usuário:</b> {ig.get('nome_usuario', '')}", normal_style),
-         Paragraph(f"<b>WhatsApp:</b> {ig.get('whatsapp', '')}", normal_style)],
-        [Paragraph(f"<b>E-mail:</b> {ig.get('email', '')}", normal_style),
-         Paragraph(f"<b>Resp. Atendimento:</b> {ig.get('responsavel_atendimento', '')}", normal_style)],
-        [Paragraph(f"<b>Período:</b> {ig.get('periodo_atendimento', '')}", normal_style),
-         Paragraph(f"<b>Turno:</b> [ {'X' if ig.get('turno')=='M' else ' '} ] M  &nbsp;&nbsp;[ {'X' if ig.get('turno')=='T' else ' '} ] T  &nbsp;&nbsp;[ {'X' if ig.get('turno')=='N' else ' '} ] N", normal_style)],
+        [Paragraph(f"<b>Entidade:</b> {ig.get('entidade', '')}", normal_style), Paragraph(f"<b>Sistema:</b> {ig.get('sistema', '')}", normal_style)],
+        [Paragraph(f"<b>Setor:</b> {ig.get('setor', '')}", normal_style), Paragraph(f"<b>Data da Visita:</b> {ig.get('data_visita', '')}", normal_style)],
+        [Paragraph(f"<b>Nome do Usuário:</b> {ig.get('nome_usuario', '')}", normal_style), Paragraph(f"<b>WhatsApp:</b> {ig.get('whatsapp', '')}", normal_style)],
+        [Paragraph(f"<b>E-mail:</b> {ig.get('email', '')}", normal_style), Paragraph(f"<b>Resp. Atendimento:</b> {ig.get('responsavel_atendimento', '')}", normal_style)],
+        [Paragraph(f"<b>Período:</b> {ig.get('periodo_atendimento', '')}", normal_style), Paragraph(f"<b>Turno:</b> [ {'X' if ig.get('turno')=='M' else ' '} ] M &nbsp;&nbsp;[ {'X' if ig.get('turno')=='T' else ' '} ] T &nbsp;&nbsp;[ {'X' if ig.get('turno')=='N' else ' '} ] N", normal_style)],
     ]
     t_info = Table(info_data, colWidths=[270, 270])
-    t_info.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    t_info.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_info)
     
     story.append(Spacer(1, 6))
     desc_data = [[Paragraph(f"<b>Descrição Detalhada:</b><br/>{ig.get('descricao', 'Nenhuma descrição informada.')}", normal_style)]]
     t_desc = Table(desc_data, colWidths=[540])
-    t_desc.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    t_desc.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_desc)
     
+    # Serviço Executado
     se = dados.get("servico_executado", {})
     story.append(Paragraph("Registro do Serviço Executado", section_style))
-    
-    ci = "[X]" if se.get('implantacao') else "[  ]"
-    ct = "[X]" if se.get('treinamento') else "[  ]"
-    cd = "[X]" if se.get('demonstracao_sistema') else "[  ]"
-    cv = "[X]" if se.get('visita') else "[  ]"
-    co = "[X]" if se.get('outros') else "[  ]"
-    
-    serv_html = f"<b>{ci}</b> Implantação &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>{ct}</b> Treinamento &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>{cd}</b> Demonstração de Sistema<br/>" \
-                f"<b>{cv}</b> Visita &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>{co}</b> Outros"
-    
-    serv_data = [[Paragraph(serv_html, normal_style)]]
-    t_serv = Table(serv_data, colWidths=[540])
-    t_serv.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    ci, ct, cd, cv, co = ("[X]" if se.get(k) else "[  ]" for k in ['implantacao', 'treinamento', 'demonstracao_sistema', 'visita', 'outros'])
+    serv_html = f"<b>{ci}</b> Implantação &nbsp;&nbsp;&nbsp;&nbsp; <b>{ct}</b> Treinamento &nbsp;&nbsp;&nbsp;&nbsp; <b>{cd}</b> Demonstração de Sistema<br/><b>{cv}</b> Visita &nbsp;&nbsp;&nbsp;&nbsp; <b>{co}</b> Outros"
+    t_serv = Table([[Paragraph(serv_html, normal_style)]], colWidths=[540])
+    t_serv.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 8), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_serv)
     
     if se.get('visita'):
@@ -539,96 +491,57 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         story.append(Paragraph(f"&nbsp;&nbsp;<b>Tipo de Visita:</b> &nbsp; {rt_c} Relacionamento Técnica &nbsp;&nbsp;&nbsp;&nbsp; {tp_c} Técnica Preventiva", normal_style))
         
     story.append(Spacer(1, 6))
-    obs_serv_data = [[Paragraph(f"<b>Observações do Serviço:</b><br/>{se.get('observacoes', 'Nenhuma observação.')}", normal_style)]]
-    t_obs_serv = Table(obs_serv_data, colWidths=[540])
-    t_obs_serv.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    t_obs_serv = Table([[Paragraph(f"<b>Observações do Serviço:</b><br/>{se.get('observacoes', 'Nenhuma observação.')}", normal_style)]], colWidths=[540])
+    t_obs_serv.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_obs_serv)
     
+    # Resultado
     ra = dados.get("resultado_atendimento", {})
     story.append(Paragraph("Resultado do Atendimento", section_style))
-    
-    r1 = "[X]" if ra.get('perfeito_funcionamento') else "[  ]"
-    r2 = "[X]" if ra.get('pendencias_posterior') else "[  ]"
-    r3 = "[X]" if ra.get('treinamento_sucesso') else "[  ]"
-    r4 = "[X]" if ra.get('pendencias_operador') else "[  ]"
-    r5 = "[X]" if ra.get('cartoes') else "[  ]"
-    r6 = "[X]" if ra.get('outros') else "[  ]"
-    
-    res_html = f"<b>{r1}</b> O Sistema ficou em perfeito funcionamento, sem nenhuma pendência<br/>" \
-               f"<b>{r2}</b> Existem pendências para solução posterior (listar em observações)<br/>" \
-               f"<b>{r3}</b> Treinamento efetuado com sucesso<br/>" \
-               f"<b>{r4}</b> Existem pendências para que o operador/chefe do setor solucione depois<br/>" \
-               f"<b>{r5}</b> Existem cartões (listar em observações)<br/>" \
-               f"<b>{r6}</b> Outros (inserir nas observações abaixo)"
-               
-    res_data = [[Paragraph(res_html, normal_style)]]
-    t_res = Table(res_data, colWidths=[540])
-    t_res.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    r1, r2, r3, r4, r5, r6 = ("[X]" if ra.get(k) else "[  ]" for k in ['perfeito_funcionamento', 'pendencias_posterior', 'treinamento_sucesso', 'pendencias_operador', 'cartoes', 'outros'])
+    res_html = f"<b>{r1}</b> O Sistema ficou em perfeito funcionamento<br/><b>{r2}</b> Existem pendências para solução posterior<br/><b>{r3}</b> Treinamento efetuado com sucesso<br/><b>{r4}</b> Existem pendências para o operador/chefe<br/><b>{r5}</b> Existem cartões<br/><b>{r6}</b> Outros resultados"
+    t_res = Table([[Paragraph(res_html, normal_style)]], colWidths=[540])
+    t_res.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 8), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_res)
     
     story.append(Spacer(1, 6))
-    obs_res_data = [[Paragraph(f"<b>Observações do Resultado:</b><br/>{ra.get('observacoes', 'Nenhuma observação.')}", normal_style)]]
-    t_obs_res = Table(obs_res_data, colWidths=[540])
-    t_obs_res.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    t_obs_res = Table([[Paragraph(f"<b>Observações do Resultado:</b><br/>{ra.get('observacoes', 'Nenhuma observação.')}", normal_style)]], colWidths=[540])
+    t_obs_res.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_obs_res)
     
+    # Área do Cliente
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("Área do Cliente e Validação", section_style))
+    sig_u = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=140, height=50) if ac.get("assinatura_usuario") else Paragraph("<i>(Sem assinatura)</i>", normal_style)
+    sig_c = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=140, height=50) if ac.get("assinatura_coordenador") else Paragraph("<i>(Sem assinatura)</i>", normal_style)
     
-    sig_u_img = Paragraph("<i>(Sem assinatura registrada)</i>", normal_style)
-    if ac.get("assinatura_usuario"):
-        sig_u_img = RLImage(io.BytesIO(ac.get("assinatura_usuario")), width=140, height=50)
-        
-    sig_c_img = Paragraph("<i>(Sem assinatura registrada)</i>", normal_style)
-    if ac.get("assinatura_coordenador"):
-        sig_c_img = RLImage(io.BytesIO(ac.get("assinatura_coordenador")), width=140, height=50)
-        
     cliente_data = [
-        [Paragraph(f"<b>Local:</b> {ac.get('local', '')}", normal_style),
-         Paragraph(f"<b>Data do Término:</b> {ac.get('data_termino', '')}", normal_style)],
-        [Paragraph(f"<b>Nome do Usuário:</b> {ac.get('nome_usuario', '')}", normal_style),
-         Paragraph(f"<b>Nome do Coordenador:</b> {ac.get('nome_coordenador', '')}", normal_style)],
-        [Paragraph(f"<b>WhatsApp Usuário:</b> {ac.get('whatsapp_usuario', '')}", normal_style),
-         Paragraph(f"<b>WhatsApp Coordenador:</b> {ac.get('whatsapp_coordenador', '')}", normal_style)],
-        [Paragraph("<b>Assinatura do Usuário:</b>", normal_style),
-         Paragraph("<b>Assinatura do Coordenador:</b>", normal_style)],
-        [sig_u_img, sig_c_img]
+        [Paragraph(f"<b>Local:</b> {ac.get('local', '')}", normal_style), Paragraph(f"<b>Data do Término:</b> {ac.get('data_termino', '')}", normal_style)],
+        [Paragraph(f"<b>Usuário:</b> {ac.get('nome_usuario', '')}", normal_style), Paragraph(f"<b>Coordenador:</b> {ac.get('nome_coordenador', '')}", normal_style)],
+        [Paragraph(f"<b>WhatsApp Usuário:</b> {ac.get('whatsapp_usuario', '')}", normal_style), Paragraph(f"<b>WhatsApp Coordenador:</b> {ac.get('whatsapp_coordenador', '')}", normal_style)],
+        [Paragraph("<b>Assinatura Usuário:</b>", normal_style), Paragraph("<b>Assinatura Coordenador:</b>", normal_style)],
+        [sig_u, sig_c]
     ]
-    
     t_cli = Table(cliente_data, colWidths=[270, 270])
-    t_cli.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), bg_light),
-        ('BOX', (0,0), (-1,-1), 0.8, border_color),
-        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8)
-    ]))
+    t_cli.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
     story.append(t_cli)
     
+    # Anexos Fotográficos (se houver)
+    anexos = dados.get("anexos", [])
+    if anexos:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Evidências Fotográficas", section_style))
+        for idx, foto_bytes in enumerate(anexos):
+            try:
+                img_io = io.BytesIO(foto_bytes)
+                rl_img = RLImage(img_io, width=400, height=250, kind='proportional')
+                story.append(Spacer(1, 6))
+                story.append(Paragraph(f"<b>Evidência {idx+1}</b>", normal_style))
+                story.append(Spacer(1, 4))
+                story.append(rl_img)
+            except Exception:
+                pass
+
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     story.append(Spacer(1, 15))
     story.append(Paragraph(f"Portal de Treinamentos &nbsp;&bull;&nbsp; Relatório gerado eletronicamente em {agora_str}", footer_style))
@@ -639,33 +552,49 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 7. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
+# 7. GERAÇÃO E PERSISTÊNCIA AUTOMÁTICA
 # ==========================================
 st.markdown("---")
-
-if st.button("🚀 Validar e Gerar PDF", type="primary", use_container_width=True):
+if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_width=True):
     dados_val = modelo.to_dict()
     ig_val = dados_val["informacoes_gerais"]
     
     erros = []
     if not ig_val.get("entidade", "").strip():
-        erros.append("O campo **Entidade** na aba 'Informações Gerais' é obrigatório.")
+        erros.append("O campo **Entidade** é obrigatório.")
     if not ig_val.get("nome_usuario", "").strip():
-        erros.append("O campo **Nome do Usuário** na aba 'Informações Gerais' é obrigatório.")
+        erros.append("O campo **Nome do Usuário** é obrigatório.")
         
     if erros:
-        for erro in erros:
-            st.error(erro)
+        for err in erros:
+            st.error(err)
     else:
         try:
+            # Salvar no Banco de Dados Histórico
+            import json
+            conn = sqlite3.connect("relatorios.db", check_same_thread=False)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO historico (data_criacao, entidade, sistema, nome_usuario, dados_json) VALUES (?, ?, ?, ?, ?)",
+                (
+                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    ig_val.get("entidade"),
+                    ig_val.get("sistema"),
+                    ig_val.get("nome_usuario"),
+                    json.dumps(dados_val, default=str)
+                )
+            )
+            conn.commit()
+            conn.close()
+
             pdf_bytes = gerar_pdf_relatorio(dados_val)
-            st.success("Relatório gerado com sucesso!")
+            st.success("Relatório gerado e salvo no histórico com sucesso!")
             st.download_button(
                 label="📥 Baixar PDF Oficial",
                 data=pdf_bytes,
-                    file_name="relatorio_atendimento_presencial.pdf",
+                file_name=f"relatorio_{ig_val.get('entidade', 'atendimento').lower().replace(' ', '_')}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
         except Exception as e:
-            st.error(f"Erro ao gerar o PDF: {e}")
+            st.error(f"Erro ao processar relatório: {e}")
