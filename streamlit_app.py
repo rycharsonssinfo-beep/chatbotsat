@@ -10,7 +10,84 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==========================================
-# 1. MODELO DE DADOS
+# 1. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL (PORTAL)
+# ==========================================
+st.set_page_config(
+    page_title="Relatório de Atendimento Presencial — Portal",
+    page_icon="📋",
+    layout="wide"
+)
+
+# Injeção de CSS customizado para espelhar o design do Portal S&S
+st.markdown("""
+    <style>
+    /* Fundo geral e fontes */
+    .stApp {
+        background-color: #f4f6f9;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Barra lateral (Sidebar) */
+    [data-testid="stSidebar"] {
+        background-color: #0d1527;
+        color: #ffffff;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        background-color: #1b5ef7;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background-color: #1446c2;
+        color: white;
+    }
+
+    /* Estilização de Containers / Cards */
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    /* Abas superiores */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        background-color: #ffffff;
+        border-radius: 8px 8px 0 0;
+        color: #475569;
+        font-weight: 600;
+        border: 1px solid #e2e8f0;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1b5ef7 !important;
+        color: white !important;
+    }
+
+    /* Botões principais */
+    .stButton button[kind="primary"] {
+        background-color: #1b5ef7;
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #1446c2;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
+# ==========================================
+# 2. MODELO DE DADOS
 # ==========================================
 class RelatorioModel:
     def __init__(self):
@@ -71,7 +148,7 @@ class RelatorioModel:
 
 
 # ==========================================
-# 2. COMPONENTE DE ASSINATURA SEGURO
+# 3. COMPONENTE DE ASSINATURA SEGURO
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str):
     st.markdown(f"**{titulo}**")
@@ -86,7 +163,7 @@ def capturar_assinatura(titulo: str, key_prefix: str):
     assinatura_bytes = None
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small>Desenhe a assinatura abaixo (use o dedo no celular/tablet ou o mouse):</small>", unsafe_allow_html=True)
+        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo (use o dedo no celular/tablet ou o mouse):</small>", unsafe_allow_html=True)
         
         try:
             canvas_result = st_canvas(
@@ -100,7 +177,6 @@ def capturar_assinatura(titulo: str, key_prefix: str):
                 key=f"canvas_{key_prefix}"
             )
             
-            # Tratamento seguro para evitar o erro de image_data_url
             if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
                 img_array = canvas_result.image_data
                 if img_array.any():
@@ -111,8 +187,8 @@ def capturar_assinatura(titulo: str, key_prefix: str):
                     buf = io.BytesIO()
                     background.save(buf, format="PNG")
                     assinatura_bytes = buf.getvalue()
-        except Exception as e:
-            st.warning(f"Modo de desenho indisponível no momento. Utilize a opção 'Enviar Imagem' se preferir.")
+        except Exception:
+            st.warning("Modo de desenho indisponível. Utilize a opção 'Enviar Imagem' se preferir.")
     else:
         uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
@@ -123,16 +199,10 @@ def capturar_assinatura(titulo: str, key_prefix: str):
 
 
 # ==========================================
-# 3. APLICAÇÃO PRINCIPAL (STREAMLIT)
+# 4. APLICAÇÃO PRINCIPAL
 # ==========================================
-st.set_page_config(
-    page_title="Relatório de Atendimento Presencial",
-    page_icon="📋",
-    layout="wide"
-)
-
-st.title("📋 Portal de Atendimento - Grupo S&S")
-st.markdown("Preencha as abas abaixo para gerar o **Relatório de Atendimento Presencial** oficial.")
+st.title("📋 Relatório de Atendimento Presencial")
+st.markdown("Preencha as abas abaixo para registrar o atendimento técnico e gerar o documento oficial.")
 
 if "relatorio_model" not in st.session_state:
     st.session_state["relatorio_model"] = RelatorioModel()
@@ -140,16 +210,17 @@ if "relatorio_model" not in st.session_state:
 modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
-    st.header("Navegação e Ações")
+    st.header("Navegação")
+    st.markdown("---")
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
         st.session_state["relatorio_model"] = RelatorioModel()
         st.rerun()
 
-# Organização por Abas
+# Abas do sistema
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Informações Gerais", 
     "⚙️ Serviços Executados", 
-    "📊 Resultado do Atendimento", 
+    "📊 Resultado", 
     "✍️ Área do Cliente"
 ])
 
@@ -218,7 +289,6 @@ with tab4:
     with st.container(border=True):
         st.subheader("Área do Cliente e Assinaturas (Usuário e Coordenador)")
         
-        # COLUNA 1: USUÁRIO
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             st.markdown("### 👤 Usuário")
@@ -229,9 +299,8 @@ with tab4:
             sig_u = capturar_assinatura("Assinatura do Usuário", "usuario")
             if sig_u:
                 modelo.area_cliente["assinatura_usuario"] = sig_u
-                st.success("Assinatura do Usuário capturada!")
+                st.success("Assinatura do Usuário capturada com sucesso!")
                 
-        # COLUNA 2: COORDENADOR
         with col_c2:
             st.markdown("### 👔 Coordenador")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"])
@@ -241,11 +310,11 @@ with tab4:
             sig_c = capturar_assinatura("Assinatura do Coordenador", "coordenador")
             if sig_c:
                 modelo.area_cliente["assinatura_coordenador"] = sig_c
-                st.success("Assinatura do Coordenador capturada!")
+                st.success("Assinatura do Coordenador capturada com sucesso!")
 
 
 # ==========================================
-# 4. GERADOR DE PDF
+# 5. GERADOR DE PDF
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
@@ -257,7 +326,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         'TitleStyle',
         parent=styles['Heading1'],
         fontSize=14,
-        textColor=colors.HexColor('#004D40'),
+        textColor=colors.HexColor('#0d1527'),
         spaceAfter=10,
         alignment=1
     )
@@ -267,7 +336,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         parent=styles['Heading2'],
         fontSize=11,
         textColor=colors.white,
-        backColor=colors.HexColor('#004D40'),
+        backColor=colors.HexColor('#0d1527'),
         spaceBefore=8,
         spaceAfter=8,
         leftIndent=4,
@@ -279,7 +348,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     normal_style.leading = 11
 
     # Cabeçalho
-    story.append(Paragraph("<b>Grupo S&S</b>", normal_style))
+    story.append(Paragraph("<b>Portal de Atendimento - Grupo S&S</b>", normal_style))
     story.append(Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style))
     story.append(Spacer(1, 5))
     
@@ -350,7 +419,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     story.append(Spacer(1, 4))
     story.append(Paragraph(f"<b>Observações (Resultado):</b> {ra.get('observacoes', '')}", normal_style))
     
-    # Área do Cliente com as duas assinaturas
+    # Área do Cliente
     ac = dados.get("area_cliente", {})
     story.append(Paragraph("<b>Área do Cliente</b>", section_style))
     
@@ -384,7 +453,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
 
 # ==========================================
-# 5. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
+# 6. BOTÃO DE GERAÇÃO COM VALIDAÇÃO
 # ==========================================
 st.markdown("---")
 
