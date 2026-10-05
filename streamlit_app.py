@@ -168,33 +168,29 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
     )
     
     if metodo == "Desenhar na Tela":
-        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo e aguarde atualizar:</small>", unsafe_allow_html=True)
+        st.markdown(f"<small style='color: #64748b;'>Desenhe a assinatura abaixo:</small>", unsafe_allow_html=True)
         
-        try:
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 165, 0, 0.3)",
-                stroke_width=2,
-                stroke_color="#000000",
-                background_color="#FFFFFF",
-                height=130,
-                width=350,
-                drawing_mode="freedraw",
-                key=f"canvas_{key_prefix}"
-            )
-            
-            if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
-                img_array = canvas_result.image_data
-                # Verifica se há pixels desenhados (diferente de branco puro)
-                if img_array.any():
-                    pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                    background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                    background.paste(pil_img, mask=pil_img.split()[3])
-                    
-                    buf = io.BytesIO()
-                    background.save(buf, format="PNG")
-                    modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-        except Exception:
-            st.warning("Modo de desenho indisponível. Utilize a opção 'Enviar Imagem' se preferir.")
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",
+            stroke_width=2,
+            stroke_color="#000000",
+            background_color="#FFFFFF",
+            height=130,
+            width=350,
+            drawing_mode="freedraw",
+            key=f"canvas_{key_prefix}"
+        )
+        
+        if canvas_result is not None and canvas_result.image_data is not None:
+            img_array = canvas_result.image_data
+            if img_array.any():
+                pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                background.paste(pil_img, mask=pil_img.split()[3])
+                
+                buf = io.BytesIO()
+                background.save(buf, format="PNG")
+                modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
     else:
         uploaded_file = st.file_uploader(f"Enviar arquivo da assinatura ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
         if uploaded_file is not None:
