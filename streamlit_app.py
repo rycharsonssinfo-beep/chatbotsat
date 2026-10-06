@@ -7,6 +7,7 @@ from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
+import urllib.request
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -95,34 +96,21 @@ st.markdown("""
 
 
 # ==========================================
-# 2. LOGO EMBUTIDA EM BASE64 (GARANTE 100% DE CARREGAMENTO)
+# 2. CARREGAMENTO DA LOGOTIPO OFICIAL
 # ==========================================
-# Esta string representa a logo oficial do Grupo S&S de forma integrada, evitando bloqueios de rede/CORS.
-LOGO_BASE64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmFAAAACXBIWXMAAAsTAAALEwEAmpwY"
-    "AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAABrSURBVHgB7c9BCgAgDAPB///p3kMI"
-    "ioig2U6N0ZvZ7k0P4/j4uQ9A38cOqNtv1rYp1tY+2tZu2tZu2tZu2tZu2tZu2tZu2tZu2tZu"
-    "2tZu2tZu2tZu2tZu2tZu2tZu2tZu2tZu2tZu2tZu2tYnFwB94w0fQe4c0QAAAABJRU5ErkJggg=="
-)
-
 @st.cache_data
 def obter_logo_bytes() -> bytes:
     try:
-        # Tenta decodificar o base64 padrão embutido caso queira testar, ou faz o download direto com timeout curto
-        import urllib.request
         url = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
         req = urllib.request.Request(
             url, 
             headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         )
-        with urllib.request.urlopen(req, timeout=3) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             return response.read()
-    except Exception:
-        # Fallback seguro caso a URL falhe: decodifica uma imagem padrão ou cria um placeholder visual limpo via Pillow
-        img = Image.new('RGB', (200, 70), color=(13, 21, 39))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        return buf.getvalue()
+    except Exception as e:
+        st.error(f"Erro ao carregar a logo oficial: {e}")
+        return b""
 
 LOGO_BYTES = obter_logo_bytes()
 
@@ -453,11 +441,11 @@ with st.sidebar:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
 
-# Cabeçalho Principal com a Logo Oficial
+# Cabeçalho Principal com a Logotipo Oficial Exata
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
     if LOGO_BYTES:
-        st.image(LOGO_BYTES, width=130)
+        st.image(LOGO_BYTES, width=160)
 
 with col_title:
     st.title("Grupo S&S — Relatório de Atendimento Presencial")
@@ -603,12 +591,12 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
     if LOGO_BYTES:
-        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=3.5*72/25.4, height=1.1*72/25.4, kind='proportional')
     else:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
     titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
-    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[110, 430])
+    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[130, 410])
     tabela_cabecalho.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 6),
@@ -795,5 +783,7 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
             pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
 
+        except Exception as e:
+            st.error(f"Erro ao processar relatório: {e}")
         except Exception as e:
             st.error(f"Erro ao processar relatório: {e}")
