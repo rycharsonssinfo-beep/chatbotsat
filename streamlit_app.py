@@ -478,6 +478,13 @@ def init_db():
         for s in padroes:
             cursor.execute("INSERT OR IGNORE INTO sistemas (nome) VALUES (?)", (s,))
         conn.commit()
+
+    # Migração/correção de nomenclatura em bancos já existentes
+    cursor.execute(
+        "UPDATE sistemas SET nome = ? WHERE LOWER(TRIM(nome)) = LOWER(TRIM(?))",
+        ("Gestor", "Jestor")
+    )
+    conn.commit()
     conn.close()
 
 
