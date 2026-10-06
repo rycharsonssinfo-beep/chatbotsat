@@ -3,15 +3,27 @@ import re
 import json
 import base64
 import sqlite3
+import os
+import hashlib
+from pathlib import Path
 from datetime import datetime, date
 import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+
+# ==========================================
+# CONFIGURAÇÕES DE PERSISTÊNCIA
+# ==========================================
+DB_PATH = "relatorios_ss.db"
+BACKUP_DIR = Path("backups")
+PDF_DIR = Path("pdfs")
+BACKUP_DIR.mkdir(exist_ok=True)
+PDF_DIR.mkdir(exist_ok=True)
 
 # ==========================================
 # 1. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL MODERNO
@@ -112,8 +124,15 @@ LOGO_BYTES = obter_logo_bytes()
 # ==========================================
 # 3. BANCO DE DADOS E PERSISTÊNCIA
 # ==========================================
+def garantir_coluna(cursor, tabela: str, coluna: str, definicao: str):
+    cursor.execute(f"PRAGMA table_info({tabela})")
+    colunas = {row[1] for row in cursor.fetchall()}
+    if coluna not in colunas:
+        cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+
+
 def init_db():
-    conn = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS historico (
@@ -125,10 +144,27 @@ def init_db():
             dados_json TEXT
         )
     """)
+    garantir_coluna(cursor, "historico", "report_id", "TEXT")
+    garantir_coluna(cursor, "historico", "content_hash", "TEXT")
+    garantir_coluna(cursor, "historico", "status", "TEXT DEFAULT 'Finalizado'")
+
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_historico_report_id ON historico(report_id) WHERE report_id IS NOT NULL")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_historico_entidade ON historico(entidade)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_historico_usuario ON historico(nome_usuario)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_historico_hash ON historico(content_hash)")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sistemas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rascunho (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            data_atualizacao TEXT,
+            report_id TEXT,
+            dados_json TEXT
         )
     """)
     cursor.execute("SELECT COUNT(*) FROM sistemas")
@@ -145,19 +181,22 @@ def init_db():
         conn.commit()
     conn.close()
 
+
 init_db()
 
+
 def carregar_sistemas_db() -> list:
-    conn = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("SELECT nome FROM sistemas ORDER BY nome")
     rows = cursor.fetchall()
     conn.close()
     return ["Selecione o sistema..."] + [r[0] for r in rows] + ["Outros"]
 
+
 def adicionar_sistema_db(novo_sistema: str) -> bool:
     if novo_sistema and novo_sistema.strip():
-        conn = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
         try:
             cursor.execute("SELECT id FROM sistemas WHERE LOWER(nome) = LOWER(?)", (novo_sistema.strip(),))
@@ -172,6 +211,88 @@ def adicionar_sistema_db(novo_sistema: str) -> bool:
             conn.close()
             return False
     return False
+
+
+def gerar_id_relatorio() -> str:
+    ano = datetime.now().year
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT MAX(CAST(SUBSTR(report_id, 10) AS INTEGER)) FROM historico WHERE report_id LIKE ?",
+        (f"RAT-{ano}-%",)
+    )
+    ultimo = cursor.fetchone()[0] or 0
+    conn.close()
+    return f"RAT-{ano}-{ultimo + 1:05d}"
+
+
+def calcular_hash_conteudo(dados: dict) -> str:
+    payload = json.dumps(dados, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def salvar_rascunho_db(dados: dict, report_id: str | None = None):
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO rascunho (id, data_atualizacao, report_id, dados_json)
+        VALUES (1, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_atualizacao = excluded.data_atualizacao,
+            report_id = excluded.report_id,
+            dados_json = excluded.dados_json
+    """, (agora, report_id, json.dumps(dados, ensure_ascii=False, default=str)))
+    conn.commit()
+    conn.close()
+    return agora
+
+
+def carregar_rascunho_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT data_atualizacao, report_id, dados_json FROM rascunho WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        return {"data_atualizacao": row[0], "report_id": row[1], "dados": json.loads(row[2])}
+    except Exception:
+        return None
+
+
+def excluir_rascunho_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("DELETE FROM rascunho WHERE id = 1")
+    conn.commit()
+    conn.close()
+
+
+def backup_database(max_backups: int = 30) -> Path:
+    nome = BACKUP_DIR / f"relatorios_ss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    origem = sqlite3.connect(DB_PATH, check_same_thread=False)
+    destino = sqlite3.connect(str(nome))
+    try:
+        origem.backup(destino)
+    finally:
+        destino.close()
+        origem.close()
+
+    backups = sorted(BACKUP_DIR.glob("relatorios_ss_*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for antigo in backups[max_backups:]:
+        try:
+            antigo.unlink()
+        except OSError:
+            pass
+    return nome
+
+
+def salvar_pdf_local(pdf_bytes: bytes, report_id: str, entidade: str) -> Path:
+    nome_entidade = re.sub(r"[^A-Za-z0-9_-]+", "_", entidade.strip()).strip("_") or "atendimento"
+    caminho = PDF_DIR / f"{report_id}_{nome_entidade}.pdf"
+    caminho.write_bytes(pdf_bytes)
+    return caminho
 
 
 # ==========================================
@@ -238,6 +359,7 @@ class RelatorioModel:
             "assinatura_coordenador": None
         }
         self.anexos = []
+        self.report_id = None
 
     def to_dict(self) -> dict:
         d = {
@@ -269,7 +391,21 @@ class RelatorioModel:
             foto_enc = base64.b64encode(foto_b).decode('utf-8') if isinstance(foto_b, bytes) else foto_b
             d["anexos"].append({"foto": foto_enc, "legenda": item.get("legenda", "")})
 
+        d["_meta"] = {"report_id": self.report_id}
         return d
+
+
+# ==========================================
+# OTIMIZAÇÃO DE EVIDÊNCIAS FOTOGRÁFICAS
+# ==========================================
+def otimizar_foto(uploaded_file, max_dim=1600, qualidade=82) -> bytes:
+    """Reduz fotos de celular mantendo boa qualidade para o relatório/PDF."""
+    img = Image.open(uploaded_file)
+    img = img.convert("RGB")
+    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=qualidade, optimize=True)
+    return buffer.getvalue()
 
 
 # ==========================================
@@ -324,6 +460,9 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             else:
                 sig_bytes = sig_val
             st.image(sig_bytes, width=180)
+            if st.button(f"🗑️ Limpar {titulo}", key=f"btn_limpar_{key_prefix}"):
+                modelo_ref.area_cliente[campo_modelo] = None
+                st.rerun()
         except Exception:
             pass
 
@@ -331,8 +470,59 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
 # ==========================================
 # 6. SIDEBAR E GERENCIAMENTO
 # ==========================================
+def modelo_from_dict(dados_carregados: dict, report_id: str | None = None) -> RelatorioModel:
+    novo_mod = RelatorioModel()
+    novo_mod.report_id = report_id or dados_carregados.get("_meta", {}).get("report_id")
+    novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
+
+    data_v_str = novo_mod.informacoes_gerais.get("data_visita")
+    if isinstance(data_v_str, str):
+        try:
+            novo_mod.informacoes_gerais["data_visita"] = datetime.strptime(data_v_str, "%d/%m/%Y").date()
+        except ValueError:
+            novo_mod.informacoes_gerais["data_visita"] = date.today()
+
+    novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
+    novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
+    novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
+
+    for campo_assinatura in ("assinatura_usuario", "assinatura_coordenador"):
+        valor = novo_mod.area_cliente.get(campo_assinatura)
+        if isinstance(valor, str):
+            try:
+                novo_mod.area_cliente[campo_assinatura] = base64.b64decode(valor)
+            except Exception:
+                novo_mod.area_cliente[campo_assinatura] = None
+
+    data_t_str = novo_mod.area_cliente.get("data_termino")
+    if isinstance(data_t_str, str):
+        try:
+            novo_mod.area_cliente["data_termino"] = datetime.strptime(data_t_str, "%d/%m/%Y").date()
+        except ValueError:
+            novo_mod.area_cliente["data_termino"] = date.today()
+
+    anexos_raw = dados_carregados.get("anexos", [])
+    novo_mod.anexos = []
+    for item in anexos_raw:
+        try:
+            f_b64 = item.get("foto")
+            f_bytes = base64.b64decode(f_b64) if isinstance(f_b64, str) else f_b64
+            if f_bytes:
+                novo_mod.anexos.append({"foto": f_bytes, "legenda": item.get("legenda", "")})
+        except Exception:
+            continue
+    return novo_mod
+
+
 if "relatorio_model" not in st.session_state:
-    st.session_state["relatorio_model"] = RelatorioModel()
+    rascunho = carregar_rascunho_db()
+    if rascunho and rascunho.get("dados"):
+        st.session_state["relatorio_model"] = modelo_from_dict(rascunho["dados"], rascunho.get("report_id"))
+        st.session_state["rascunho_recuperado"] = rascunho.get("data_atualizacao")
+    else:
+        st.session_state["relatorio_model"] = RelatorioModel()
+    st.session_state["draft_hash"] = None
+    st.session_state["last_draft_save"] = None
 
 modelo = st.session_state["relatorio_model"]
 
@@ -340,9 +530,16 @@ with st.sidebar:
     st.header("⚙ Painel de Controle")
 
     if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
+        excluir_rascunho_db()
         st.session_state["relatorio_model"] = RelatorioModel()
+        st.session_state["draft_hash"] = None
+        st.session_state["last_draft_save"] = None
+        st.session_state.pop("rascunho_recuperado", None)
         st.rerun()
-        
+
+    if st.session_state.get("rascunho_recuperado"):
+        st.info(f"Rascunho recuperado em {st.session_state['rascunho_recuperado']}")
+
     st.markdown("---")
     st.subheader("➕ Novo Sistema")
     novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex: Novo Sistema...")
@@ -356,83 +553,53 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("📂 Histórico de Relatórios")
     termo_busca = st.text_input("🔍 Filtrar entidade/usuário", placeholder="Digite para buscar...")
-    
+
     try:
-        conn_h = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
+        conn_h = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor_h = conn_h.cursor()
         if termo_busca:
-            cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico WHERE entidade LIKE ? OR nome_usuario LIKE ? ORDER BY id DESC LIMIT 10", (f"%{termo_busca}%", f"%{termo_busca}%"))
+            cursor_h.execute("""
+                SELECT id, data_criacao, entidade, sistema, nome_usuario, report_id, status, dados_json
+                FROM historico
+                WHERE entidade LIKE ? OR nome_usuario LIKE ? OR sistema LIKE ? OR report_id LIKE ?
+                ORDER BY id DESC LIMIT 15
+            """, (f"%{termo_busca}%", f"%{termo_busca}%", f"%{termo_busca}%", f"%{termo_busca}%"))
         else:
-            cursor_h.execute("SELECT id, data_criacao, entidade, sistema, nome_usuario, dados_json FROM historico ORDER BY id DESC LIMIT 5")
+            cursor_h.execute("""
+                SELECT id, data_criacao, entidade, sistema, nome_usuario, report_id, status, dados_json
+                FROM historico ORDER BY id DESC LIMIT 10
+            """)
         historico_rows = cursor_h.fetchall()
         conn_h.close()
-        
+
         if historico_rows:
-            for h_id, h_data, h_ent, h_sis, h_user, h_json in historico_rows:
+            for h_id, h_data, h_ent, h_sis, h_user, h_report_id, h_status, h_json in historico_rows:
                 with st.container():
                     st.markdown(f"""
                     <div class="history-card">
                         <b>{h_ent}</b><br>
+                        <small>{h_report_id or 'ID legado'}</small><br>
                         🛠️ {h_sis or 'N/D'}<br>
-                        👤 {h_user} | 📅 {h_data}
+                        👤 {h_user} | 📅 {h_data}<br>
+                        <small>● {h_status or 'Finalizado'}</small>
                     </div>
                     """, unsafe_allow_html=True)
                     if st.button("Carregar", key=f"carregar_{h_id}", use_container_width=True):
                         try:
                             dados_carregados = json.loads(h_json)
-                            novo_mod = RelatorioModel()
-                            novo_mod.informacoes_gerais = dados_carregados.get("informacoes_gerais", novo_mod.informacoes_gerais)
-                            
-                            data_v_str = novo_mod.informacoes_gerais.get("data_visita")
-                            if isinstance(data_v_str, str):
-                                try:
-                                    novo_mod.informacoes_gerais["data_visita"] = datetime.strptime(data_v_str, "%d/%m/%Y").date()
-                                except ValueError:
-                                    novo_mod.informacoes_gerais["data_visita"] = date.today()
-
-                            novo_mod.servico_executado = dados_carregados.get("servico_executado", novo_mod.servico_executado)
-                            novo_mod.resultado_atendimento = dados_carregados.get("resultado_atendimento", novo_mod.resultado_atendimento)
-                            novo_mod.area_cliente = dados_carregados.get("area_cliente", novo_mod.area_cliente)
-                            
-                            sig_u_load = novo_mod.area_cliente.get("assinatura_usuario")
-                            if isinstance(sig_u_load, str):
-                                try:
-                                    novo_mod.area_cliente["assinatura_usuario"] = base64.b64decode(sig_u_load)
-                                except Exception:
-                                    pass
-
-                            sig_c_load = novo_mod.area_cliente.get("assinatura_coordenador")
-                            if isinstance(sig_c_load, str):
-                                try:
-                                    novo_mod.area_cliente["assinatura_coordenador"] = base64.b64decode(sig_c_load)
-                                except Exception:
-                                    pass
-
-                            data_t_str = novo_mod.area_cliente.get("data_termino")
-                            if isinstance(data_t_str, str):
-                                try:
-                                    novo_mod.area_cliente["data_termino"] = datetime.strptime(data_t_str, "%d/%m/%Y").date()
-                                except ValueError:
-                                    novo_mod.area_cliente["data_termino"] = date.today()
-
-                            anexos_raw = dados_carregados.get("anexos", [])
-                            anexos_formatados = []
-                            for item in anexos_raw:
-                                f_b64 = item.get("foto")
-                                f_bytes = base64.b64decode(f_b64) if isinstance(f_b64, str) else f_b64
-                                anexos_formatados.append({"foto": f_bytes, "legenda": item.get("legenda", "")})
-                            
-                            novo_mod.anexos = anexos_formatados
-                            st.session_state["relatorio_model"] = novo_mod
-                            st.success("Carregado com sucesso!")
+                            st.session_state["relatorio_model"] = modelo_from_dict(dados_carregados, h_report_id)
+                            st.session_state["draft_hash"] = None
+                            st.session_state.pop("rascunho_recuperado", None)
+                            st.success(f"Relatório {h_report_id or ''} carregado com sucesso!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao carregar: {e}")
                 st.markdown("")
         else:
             st.markdown("<small style='color: #94a3b8;'>Nenhum registro encontrado.</small>", unsafe_allow_html=True)
-    except Exception:
-        st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
+    except Exception as e:
+        st.markdown("<small style='color: #94a3b8;'>Não foi possível consultar o histórico.</small>", unsafe_allow_html=True)
+
 
 
 # Cabeçalho Principal com a Logo Oficial
@@ -443,6 +610,10 @@ with col_logo:
 
 with col_title:
     st.title("Relatório de Atendimento Presencial")
+    if modelo.report_id:
+        st.caption(f"Identificação: **{modelo.report_id}**")
+    else:
+        st.caption("Novo atendimento — o identificador será criado automaticamente ao salvar o primeiro rascunho.")
 
 st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
 
@@ -548,20 +719,49 @@ with tab4:
 with tab5:
     with st.container(border=True):
         st.subheader("📷 Evidências Fotográficas do Atendimento")
-        uploaded_photos = st.file_uploader("Enviar imagens de evidência", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-        
+        uploaded_photos = st.file_uploader(
+            "Enviar imagens de evidência",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True,
+            help="As imagens serão otimizadas automaticamente para reduzir o tamanho do relatório."
+        )
+
         if uploaded_photos:
-            novos_anexos = []
-            for idx, p in enumerate(uploaded_photos):
-                st.markdown(f"**Foto {idx + 1}:** `{p.name}`")
+            if len(uploaded_photos) > 12:
+                st.error("Limite de 12 evidências por relatório. Remova algumas imagens para continuar.")
+            else:
+                novos_anexos = []
+                for idx, p in enumerate(uploaded_photos):
+                    st.markdown(f"**Evidência {idx + 1}:** `{p.name}`")
+                    c_img, c_leg = st.columns([1, 2])
+                    try:
+                        foto_otimizada = otimizar_foto(p)
+                        with c_img:
+                            st.image(foto_otimizada, width=180)
+                            tamanho_kb = len(foto_otimizada) / 1024
+                            st.caption(f"Imagem otimizada: {tamanho_kb:.0f} KB")
+                        with c_leg:
+                            legenda = st.text_input(
+                                f"Legenda para a evidência {idx + 1}",
+                                key=f"legenda_foto_{idx}",
+                                value=(modelo.anexos[idx].get("legenda", "") if idx < len(modelo.anexos) else "")
+                            )
+                        novos_anexos.append({"foto": foto_otimizada, "legenda": legenda})
+                    except Exception as e:
+                        st.error(f"Não foi possível processar a imagem {p.name}: {e}")
+                    st.markdown("---")
+                modelo.anexos = novos_anexos
+
+        if modelo.anexos and not uploaded_photos:
+            st.markdown(f"**{len(modelo.anexos)} evidência(s) já registrada(s) neste relatório.**")
+            for idx, item in enumerate(modelo.anexos):
                 c_img, c_leg = st.columns([1, 2])
                 with c_img:
-                    st.image(p, width=150)
+                    st.image(item.get("foto"), width=180)
                 with c_leg:
-                    legenda = st.text_input(f"Legenda para a foto {idx + 1}", key=f"legenda_foto_{idx}")
-                novos_anexos.append({"foto": p.getvalue(), "legenda": legenda})
-                st.markdown("---")
-            modelo.anexos = novos_anexos
+                    st.write(f"**Evidência {idx + 1}**")
+                    st.caption(item.get("legenda") or "Sem legenda")
+
 
 
 # ==========================================
@@ -569,8 +769,11 @@ with tab5:
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36, title="Relatório de Atendimento Presencial", author="Grupo S&S")
     story = []
+    meta = dados.get("_meta", {})
+    report_id = meta.get("report_id") or "RAT-NÃO-IDENTIFICADO"
+    agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
     
     styles = getSampleStyleSheet()
     primary_color = colors.HexColor('#0d1527')
@@ -589,7 +792,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     else:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
-    titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
+    titulo_cabecalho = Paragraph(f"<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b><br/><font size=8>Documento: {report_id}</font>", title_style)
     tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[200, 340])
     tabela_cabecalho.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
@@ -697,85 +900,232 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
                 foto_val = item.get("foto")
                 foto_bytes = base64.b64decode(foto_val) if isinstance(foto_val, str) else foto_val
                 legenda = item.get("legenda", f"Evidência {idx+1}")
-                rl_img = RLImage(io.BytesIO(foto_bytes), width=380, height=220, kind='proportional')
-                story.append(Spacer(1, 4))
-                story.append(Paragraph(f"<b>Evidência {idx+1}:</b> {legenda}", normal_style))
-                story.append(Spacer(1, 3))
-                story.append(rl_img)
-            except Exception:
-                pass
+                img_pil = Image.open(io.BytesIO(foto_bytes)).convert("RGB")
+                max_width, max_height = 500, 300
+                ratio = min(max_width / img_pil.width, max_height / img_pil.height, 1)
+                img_w = img_pil.width * ratio
+                img_h = img_pil.height * ratio
+                rl_img = RLImage(io.BytesIO(foto_bytes), width=img_w, height=img_h)
+                bloco_evidencia = [
+                    Spacer(1, 4),
+                    Paragraph(f"<b>Evidência {idx+1}:</b> {legenda or 'Sem legenda'}", normal_style),
+                    Spacer(1, 3),
+                    rl_img
+                ]
+                story.append(KeepTogether(bloco_evidencia))
+            except Exception as exc:
+                story.append(Paragraph(f"<i>Evidência {idx+1}: não foi possível inserir a imagem no PDF.</i>", normal_style))
 
-    agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(f"Grupo S&S &nbsp;&bull;&nbsp; Relatório gerado eletronicamente em {agora_str}", footer_style))
-    
-    doc.build(story)
+    def decorar_pagina(canvas, doc_obj):
+        canvas.saveState()
+        largura, _ = letter
+        canvas.setStrokeColor(border_color)
+        canvas.setLineWidth(0.5)
+        canvas.line(36, 27, largura - 36, 27)
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(text_muted)
+        canvas.drawString(36, 15, f"Grupo S&S • {report_id} • Gerado em {agora_str}")
+        canvas.drawRightString(largura - 36, 15, f"Página {canvas.getPageNumber()}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=decorar_pagina, onLaterPages=decorar_pagina)
     buffer.seek(0)
     return buffer.getvalue()
 
 
 # ==========================================
-# 8. BOTÃO DE GERAÇÃO E PRÉ-VISUALIZAÇÃO
+# 8. AUTOSAVE, VALIDAÇÃO, GERAÇÃO E PRÉ-VISUALIZAÇÃO
 # ==========================================
+def tem_conteudo_para_rascunho(dados: dict) -> bool:
+    ig = dados.get("informacoes_gerais", {})
+    ac = dados.get("area_cliente", {})
+    return any([
+        ig.get("entidade", "").strip(),
+        ig.get("nome_usuario", "").strip(),
+        ig.get("descricao", "").strip(),
+        ig.get("sistema", "").strip(),
+        ig.get("responsavel_atendimento", "").strip(),
+        dados.get("anexos"),
+        ac.get("assinatura_usuario"),
+        ac.get("assinatura_coordenador")
+    ])
+
+
+def validar_relatorio(dados: dict):
+    ig = dados.get("informacoes_gerais", {})
+    se = dados.get("servico_executado", {})
+    ra = dados.get("resultado_atendimento", {})
+    erros = []
+    avisos = []
+
+    if not ig.get("entidade", "").strip():
+        erros.append("O campo **Entidade** é obrigatório.")
+    if not ig.get("nome_usuario", "").strip():
+        erros.append("O campo **Nome do Usuário** é obrigatório.")
+    if not ig.get("sistema", "").strip():
+        erros.append("Selecione o **Sistema** atendido.")
+    if not ig.get("responsavel_atendimento", "").strip():
+        erros.append("Informe o **Responsável pelo Atendimento**.")
+    if ig.get("email") and not validar_email(ig.get("email")):
+        erros.append("O formato do **E-mail** informado é inválido.")
+
+    servicos_marcados = any(se.get(k) for k in ["implantacao", "treinamento", "demonstracao_sistema", "visita", "outros"])
+    if not servicos_marcados:
+        erros.append("Marque pelo menos um item em **Serviço Executado**.")
+    if se.get("visita") and not se.get("tipo_visita"):
+        erros.append("Ao marcar **Visita**, informe pelo menos um tipo de visita.")
+    if se.get("outros") and not se.get("observacoes", "").strip():
+        avisos.append("Foi marcado **Outros** em Serviço Executado, mas as observações estão vazias.")
+
+    resultados_marcados = any(ra.get(k) for k in ["perfeito_funcionamento", "pendencias_posterior", "treinamento_sucesso", "pendencias_operador", "cartoes", "outros"])
+    if not resultados_marcados:
+        erros.append("Informe pelo menos um **Resultado do Atendimento**.")
+    if any(ra.get(k) for k in ["pendencias_posterior", "pendencias_operador", "cartoes", "outros"]) and not ra.get("observacoes", "").strip():
+        avisos.append("Há um resultado que pede detalhamento, mas as **Observações do Resultado** estão vazias.")
+
+    if not dados.get("area_cliente", {}).get("nome_usuario", "").strip():
+        avisos.append("O nome do usuário na **Área do Cliente** ainda não foi informado.")
+    if not dados.get("area_cliente", {}).get("assinatura_usuario"):
+        avisos.append("A **assinatura do usuário** ainda não foi registrada.")
+    if not dados.get("area_cliente", {}).get("assinatura_coordenador"):
+        avisos.append("A **assinatura do coordenador** ainda não foi registrada.")
+
+    return erros, avisos
+
+
+# Autosave: grava somente quando o conteúdo realmente mudou.
+dados_atuais = modelo.to_dict()
+if tem_conteudo_para_rascunho(dados_atuais):
+    hash_atual = calcular_hash_conteudo(dados_atuais)
+    if hash_atual != st.session_state.get("draft_hash"):
+        try:
+            if not modelo.report_id:
+                modelo.report_id = gerar_id_relatorio()
+                dados_atuais = modelo.to_dict()
+                hash_atual = calcular_hash_conteudo(dados_atuais)
+            salvo_em = salvar_rascunho_db(dados_atuais, modelo.report_id)
+            st.session_state["draft_hash"] = hash_atual
+            st.session_state["last_draft_save"] = salvo_em
+        except Exception as e:
+            st.session_state["last_draft_error"] = str(e)
+
+if st.session_state.get("last_draft_save"):
+    st.markdown(
+        f"<div style='text-align:right; color:#64748b; font-size:0.78rem;'>✓ Rascunho salvo automaticamente às {st.session_state['last_draft_save']}</div>",
+        unsafe_allow_html=True
+    )
+if st.session_state.get("last_draft_error"):
+    st.warning(f"O preenchimento continua normalmente, mas o rascunho não pôde ser salvo: {st.session_state['last_draft_error']}")
+
 st.markdown("---")
 if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_width=True):
     dados_val = modelo.to_dict()
-    ig_val = dados_val["informacoes_gerais"]
-    
-    erros = []
-    if not ig_val.get("entidade", "").strip():
-        erros.append("O campo **Entidade** é obrigatório.")
-    if not ig_val.get("nome_usuario", "").strip():
-        erros.append("O campo **Nome do Usuário** é obrigatório.")
-    if ig_val.get("email") and not validar_email(ig_val.get("email")):
-        erros.append("O formato do **E-mail** informado é inválido.")
-        
+    erros, avisos = validar_relatorio(dados_val)
+
     if erros:
+        st.error("O relatório precisa de alguns ajustes antes da geração:")
         for err in erros:
             st.error(err)
     else:
+        for aviso in avisos:
+            st.warning(aviso)
+
         try:
-            conn = sqlite3.connect("relatorios_ss.db", check_same_thread=False)
+            # Garante identificação única mesmo em relatórios antigos.
+            if not modelo.report_id:
+                modelo.report_id = gerar_id_relatorio()
+            dados_val = modelo.to_dict()
+            dados_val["_meta"] = {
+                "report_id": modelo.report_id,
+                "gerado_em": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+            content_hash = calcular_hash_conteudo({k: v for k, v in dados_val.items() if k != "_meta"})
+
+            conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO historico (data_criacao, entidade, sistema, nome_usuario, dados_json) VALUES (?, ?, ?, ?, ?)",
-                (
-                    datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    ig_val.get("entidade"),
-                    ig_val.get("sistema"),
-                    ig_val.get("nome_usuario"),
-                    json.dumps(dados_val, default=str)
-                )
-            )
-            conn.commit()
-            conn.close()
+            cursor.execute("SELECT report_id FROM historico WHERE content_hash = ? ORDER BY id DESC LIMIT 1", (content_hash,))
+            duplicado = cursor.fetchone()
 
-            pdf_bytes = gerar_pdf_relatorio(dados_val)
-            st.success("Relatório gerado e salvo com sucesso!")
-            
-            col_dl, col_wpp = st.columns(2)
-            with col_dl:
-                st.download_button(
-                    label="📥 Baixar PDF Oficial",
-                    data=pdf_bytes,
-                    file_name=f"relatorio_{ig_val.get('entidade', 'atendimento').lower().replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            with col_wpp:
-                wpp_num = re.sub(r'[^0-9]', '', ig_val.get('whatsapp', ''))
-                if wpp_num:
-                    msg = f"Olá, {ig_val.get('nome_usuario')}. Segue o resumo do atendimento presencial realizado no Grupo S&S para a entidade {ig_val.get('entidade')}."
-                    import urllib.parse
-                    link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
-                    st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">💬 Enviar Resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+            if duplicado and duplicado[0] != modelo.report_id:
+                conn.close()
+                st.warning(f"Este conteúdo já foi registrado no relatório **{duplicado[0]}**. A geração duplicada foi evitada.")
+            else:
+                pdf_bytes = gerar_pdf_relatorio(dados_val)
+                agora_db = datetime.now().strftime("%d/%m/%Y %H:%M")
+                dados_json = json.dumps(dados_val, ensure_ascii=False, default=str)
 
-            st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
-            base64_pdf = io.BytesIO(pdf_bytes)
-            import base64 as b64_mod
-            base64_encoded = b64_mod.b64encode(base64_pdf.read()).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+                cursor.execute("SELECT id FROM historico WHERE report_id = ?", (modelo.report_id,))
+                registro_existente = cursor.fetchone()
+                if registro_existente:
+                    cursor.execute("""
+                        UPDATE historico
+                        SET data_criacao = ?, entidade = ?, sistema = ?, nome_usuario = ?, dados_json = ?, content_hash = ?, status = 'Finalizado'
+                        WHERE report_id = ?
+                    """, (
+                        agora_db,
+                        dados_val["informacoes_gerais"].get("entidade"),
+                        dados_val["informacoes_gerais"].get("sistema"),
+                        dados_val["informacoes_gerais"].get("nome_usuario"),
+                        dados_json,
+                        content_hash,
+                        modelo.report_id
+                    ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO historico (data_criacao, entidade, sistema, nome_usuario, dados_json, report_id, content_hash, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'Finalizado')
+                    """, (
+                        agora_db,
+                        dados_val["informacoes_gerais"].get("entidade"),
+                        dados_val["informacoes_gerais"].get("sistema"),
+                        dados_val["informacoes_gerais"].get("nome_usuario"),
+                        dados_json,
+                        modelo.report_id,
+                        content_hash
+                    ))
+                conn.commit()
+                conn.close()
+
+                pdf_path = salvar_pdf_local(
+                    pdf_bytes,
+                    modelo.report_id,
+                    dados_val["informacoes_gerais"].get("entidade", "atendimento")
+                )
+                excluir_rascunho_db()
+                backup_path = backup_database()
+                st.session_state["draft_hash"] = None
+                st.session_state["last_draft_save"] = None
+                st.session_state.pop("rascunho_recuperado", None)
+                st.session_state["last_draft_error"] = None
+                st.session_state["ultimo_pdf"] = pdf_bytes
+                st.session_state["ultimo_report_id"] = modelo.report_id
+
+                st.success(f"Relatório **{modelo.report_id}** gerado, salvo e protegido contra duplicidade.")
+                st.caption(f"PDF local: `{pdf_path}` • Backup do banco: `{backup_path}`")
+
+                col_dl, col_wpp = st.columns(2)
+                with col_dl:
+                    nome_entidade = re.sub(r"[^A-Za-z0-9_-]+", "_", dados_val["informacoes_gerais"].get("entidade", "atendimento").strip()).strip("_") or "atendimento"
+                    st.download_button(
+                        label="📥 Baixar PDF Oficial",
+                        data=pdf_bytes,
+                        file_name=f"{modelo.report_id}_{nome_entidade}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with col_wpp:
+                    wpp_num = re.sub(r'[^0-9]', '', dados_val["informacoes_gerais"].get('whatsapp', ''))
+                    if wpp_num:
+                        msg = f"Olá, {dados_val['informacoes_gerais'].get('nome_usuario')}. Segue o resumo do atendimento presencial realizado no Grupo S&S para a entidade {dados_val['informacoes_gerais'].get('entidade')}. Relatório {modelo.report_id}."
+                        import urllib.parse
+                        link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
+                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">💬 Enviar Resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+
+                st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
+                base64_pdf = io.BytesIO(pdf_bytes)
+                base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
+                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
+                st.markdown(pdf_display, unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Erro ao processar relatório: {e}")
