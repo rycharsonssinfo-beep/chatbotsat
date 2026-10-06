@@ -1143,7 +1143,7 @@ with tab1:
 
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
             st.markdown('<div class="ss-group-title">Usuário atendido <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
-            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.informacoes_gerais["nome_usuario"], label_visibility="collapsed")
+            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.informacoes_gerais["nome_usuario"], label_visibility="collapsed", key="ig_nome_usuario")
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
             raw_wpp = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
@@ -1210,16 +1210,16 @@ with tab4:
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             st.markdown("#### Usuário")
-            modelo.area_cliente["local"] = st.text_input("Local (Ex: Jaguaribe-ce)", value=modelo.area_cliente["local"])
-            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
-            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
+            modelo.area_cliente["local"] = st.text_input("Local (Ex: Jaguaribe-ce)", value=modelo.area_cliente["local"], key="ac_local")
+            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"], key="ac_nome_usuario")
+            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whatsapp_usuario")
             modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
         with col_c2:
             st.markdown("#### Coordenador do Setor")
-            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
-            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
-            raw_wpp_c = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
+            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY", key="ac_data_termino")
+            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"], key="ac_nome_coordenador")
+            raw_wpp_c = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whatsapp_coordenador")
             modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
             capturar_assinatura("Assinatura Coordenador", "coordenador", modelo, "assinatura_coordenador")
 
