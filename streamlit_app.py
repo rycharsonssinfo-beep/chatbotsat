@@ -12,7 +12,7 @@ import streamlit as st
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -32,33 +32,40 @@ PDF_DIR.mkdir(exist_ok=True)
 # ==========================================
 st.set_page_config(
     page_title="Relatório de Atendimento Presencial",
-    page_icon="📋",
+    page_icon="🧾",
     layout="wide"
 )
 
 st.markdown("""
 <style>
 /* ============================================================
-   PACOTE VISUAL 2 — identidade corporativa
+   PACOTE VISUAL 4 — Design System Grupo S&S
    ============================================================ */
 :root {
-    --ss-navy: #0F172A;
-    --ss-navy-2: #111C33;
-    --ss-blue: #2563EB;
-    --ss-blue-dark: #1D4ED8;
-    --ss-blue-soft: #EFF6FF;
-    --ss-bg: #F6F8FC;
-    --ss-card: #FFFFFF;
-    --ss-border: #E2E8F0;
-    --ss-border-strong: #CBD5E1;
-    --ss-text: #1E293B;
-    --ss-muted: #64748B;
-    --ss-success: #047857;
-    --ss-success-bg: #ECFDF5;
-    --ss-warning: #B45309;
-    --ss-warning-bg: #FFFBEB;
-    --ss-danger: #B91C1C;
-    --ss-danger-bg: #FEF2F2;
+    --brand: #0F766E;
+    --brand-strong: #0B5F59;
+    --brand-alt: #0E7490;
+    --brand-soft: #F0FDFA;
+    --brand-soft-2: #ECFEFF;
+    --ink: #0F172A;
+    --text: #1E293B;
+    --muted: #64748B;
+    --subtle: #94A3B8;
+    --surface: #FFFFFF;
+    --surface-2: #F8FAFC;
+    --canvas: #F4F7FB;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --success: #047857;
+    --success-bg: #ECFDF5;
+    --warning: #B45309;
+    --warning-bg: #FFFBEB;
+    --danger: #B91C1C;
+    --danger-bg: #FEF2F2;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-soft: 0 8px 26px rgba(15, 23, 42, .045);
 }
 
 html, body, [class*="css"] {
@@ -67,21 +74,21 @@ html, body, [class*="css"] {
 
 .stApp {
     background:
-        radial-gradient(circle at top right, rgba(37,99,235,.055), transparent 25rem),
-        var(--ss-bg);
-    color: var(--ss-text);
+        radial-gradient(circle at 92% 0%, rgba(15,118,110,.045), transparent 25rem),
+        var(--canvas);
+    color: var(--text);
 }
 
 [data-testid="stAppViewContainer"] > .main .block-container {
-    max-width: 1420px;
-    padding-top: 1.5rem;
-    padding-bottom: 4rem;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 1.05rem 1.2rem 4rem 1.2rem;
 }
 
-/* Sidebar */
+/* ---------------- Sidebar ---------------- */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0B1324 0%, #101B31 100%);
-    border-right: 1px solid rgba(255,255,255,.06);
+    background: linear-gradient(180deg, #0A1323 0%, #101C31 100%);
+    border-right: 1px solid rgba(255,255,255,.055);
 }
 
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
@@ -94,43 +101,65 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {
     color: #FFFFFF;
-    letter-spacing: -.02em;
+    letter-spacing: -.025em;
 }
 
 [data-testid="stSidebar"] hr {
-    border-color: rgba(255,255,255,.09);
+    border-color: rgba(255,255,255,.075);
+    margin: .9rem 0;
+}
+
+.ss-side-kicker {
+    color: #94A3B8;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    margin: .55rem 0 .45rem 0;
+}
+
+.ss-side-note {
+    background: rgba(15,118,110,.13);
+    border: 1px solid rgba(45,212,191,.14);
+    color: #CCFBF1;
+    border-radius: 10px;
+    padding: .62rem .7rem;
+    font-size: .72rem;
+    line-height: 1.45;
+    margin: .45rem 0 .7rem 0;
 }
 
 [data-testid="stSidebar"] .stTextInput input {
-    background: rgba(255,255,255,.07);
-    border-color: rgba(255,255,255,.13);
-    color: #FFFFFF;
+    background: rgba(255,255,255,.075) !important;
+    border-color: rgba(255,255,255,.13) !important;
+    color: #FFFFFF !important;
 }
 
 [data-testid="stSidebar"] .stTextInput input::placeholder {
-    color: #94A3B8;
+    color: #94A3B8 !important;
 }
 
 [data-testid="stSidebar"] .stExpander {
-    background: rgba(255,255,255,.04);
+    background: rgba(255,255,255,.035);
     border: 1px solid rgba(255,255,255,.08);
-    border-radius: 12px;
+    border-radius: 10px;
 }
 
-/* Botões da sidebar — contraste reforçado */
 [data-testid="stSidebar"] .stButton > button,
 [data-testid="stSidebar"] .stDownloadButton > button {
     background: #FFFFFF !important;
-    color: #0F172A !important;
+    color: var(--ink) !important;
     border: 1px solid #D8E0EB !important;
+    border-radius: 9px !important;
+    min-height: 39px;
     box-shadow: none !important;
 }
 
 [data-testid="stSidebar"] .stButton > button p,
-[data-testid="stSidebar"] .stDownloadButton > button p,
 [data-testid="stSidebar"] .stButton > button span,
+[data-testid="stSidebar"] .stDownloadButton > button p,
 [data-testid="stSidebar"] .stDownloadButton > button span {
-    color: #0F172A !important;
+    color: var(--ink) !important;
     font-weight: 700 !important;
     opacity: 1 !important;
 }
@@ -138,342 +167,521 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] .stButton > button:hover,
 [data-testid="stSidebar"] .stDownloadButton > button:hover {
     background: #F8FAFC !important;
-    color: #0F172A !important;
     border-color: #94A3B8 !important;
+    transform: none !important;
 }
 
-[data-testid="stSidebar"] .stButton > button:hover p,
-[data-testid="stSidebar"] .stButton > button:hover span,
-[data-testid="stSidebar"] .stDownloadButton > button:hover p,
-[data-testid="stSidebar"] .stDownloadButton > button:hover span {
-    color: #0F172A !important;
-}
-
-/* Estado desabilitado: ainda legível */
-[data-testid="stSidebar"] .stButton > button:disabled,
-[data-testid="stSidebar"] .stDownloadButton > button:disabled {
-    background: #E2E8F0 !important;
-    color: #475569 !important;
-    border-color: #CBD5E1 !important;
-    opacity: 1 !important;
-    cursor: not-allowed;
-}
-
-[data-testid="stSidebar"] .stButton > button:disabled p,
-[data-testid="stSidebar"] .stButton > button:disabled span,
-[data-testid="stSidebar"] .stDownloadButton > button:disabled p,
-[data-testid="stSidebar"] .stDownloadButton > button:disabled span {
-    color: #475569 !important;
-    opacity: 1 !important;
-}
-
-/* Cabeçalho */
-.ss-hero {
-    background: linear-gradient(135deg, #FFFFFF 0%, #FBFDFF 70%, #F3F7FF 100%);
-    border: 1px solid var(--ss-border);
-    border-radius: 20px;
-    padding: 22px 26px;
-    box-shadow: 0 10px 35px rgba(15, 23, 42, .055);
-    margin-bottom: 1rem;
-}
-
-.ss-hero-title {
-    font-size: clamp(1.65rem, 2vw, 2.15rem);
-    font-weight: 750;
-    color: var(--ss-navy);
-    letter-spacing: -.035em;
-    line-height: 1.1;
-    margin: 0;
-}
-
-.ss-hero-subtitle {
-    color: var(--ss-muted);
-    font-size: .92rem;
-    margin-top: .45rem;
-}
-
-.ss-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .5rem;
-    margin-top: .9rem;
-}
-
-.ss-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    border: 1px solid var(--ss-border);
-    border-radius: 999px;
-    padding: .34rem .7rem;
-    color: #475569;
-    background: #FFFFFF;
+.history-card {
+    position: relative;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.09);
+    padding: 10px 11px;
+    border-radius: 10px;
+    margin: 6px 0 5px 0;
     font-size: .78rem;
-    font-weight: 650;
+    line-height: 1.4;
 }
 
-.ss-pill-blue {
-    color: #1D4ED8;
-    background: #EFF6FF;
-    border-color: #BFDBFE;
+.history-card b {
+    color: #FFFFFF;
+    font-size: .83rem;
 }
 
-.ss-pill-green {
-    color: #047857;
-    background: #ECFDF5;
-    border-color: #A7F3D0;
+.history-card .hc-id {
+    color: #99F6E4;
+    font-size: .65rem;
+    font-weight: 700;
+    margin-bottom: .18rem;
 }
 
-/* Progress */
-.ss-progress-card {
-    background: #FFFFFF;
-    border: 1px solid var(--ss-border);
-    border-radius: 14px;
-    padding: 13px 16px;
-    margin: .65rem 0 1rem 0;
+.history-card .hc-meta {
+    color: #CBD5E1;
+    font-size: .71rem;
+    margin-top: .22rem;
 }
 
-.ss-progress-head {
-    display:flex;
-    justify-content:space-between;
-    gap:1rem;
-    align-items:center;
-    font-size:.82rem;
-    font-weight:650;
-    color:#475569;
-    margin-bottom:.55rem;
-}
-
-.ss-progress-track {
-    width:100%;
-    height:7px;
-    background:#E8EEF7;
-    border-radius:999px;
-    overflow:hidden;
-}
-
-.ss-progress-fill {
-    height:100%;
-    background: linear-gradient(90deg, #2563EB, #3B82F6);
-    border-radius:999px;
-}
-
-/* Containers/cartões */
-div[data-testid="stVerticalBlock"] > div[style*="border"] {
-    background: rgba(255,255,255,.98);
-    border-radius: 16px !important;
-    padding: 22px !important;
-    border: 1px solid var(--ss-border) !important;
-    box-shadow: 0 6px 24px rgba(15,23,42,.035);
-}
-
-h1, h2, h3 {
-    letter-spacing: -.025em;
-}
-
-[data-testid="stMarkdownContainer"] h3 {
-    color: var(--ss-navy);
-}
-
-.ss-section-kicker {
-    color: var(--ss-blue);
-    font-size: .74rem;
+.history-card .hc-status {
+    display: inline-block;
+    margin-top: .42rem;
+    padding: .15rem .42rem;
+    border-radius: 999px;
+    background: rgba(16,185,129,.14);
+    color: #A7F3D0;
+    font-size: .63rem;
     font-weight: 750;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    margin-bottom: .2rem;
 }
 
-.ss-section-help {
-    color: var(--ss-muted);
-    font-size: .84rem;
-    margin-top: -.25rem;
+/* ---------------- Cabeçalho ---------------- */
+.ss-hero {
+    background: linear-gradient(135deg, #FFFFFF 0%, #FBFEFD 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 17px 21px;
+    box-shadow: var(--shadow-soft);
     margin-bottom: .75rem;
 }
 
-/* Campos */
+.ss-section-kicker {
+    color: var(--brand);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    margin-bottom: .2rem;
+}
+
+.ss-hero-title {
+    color: var(--ink);
+    font-size: clamp(1.48rem, 1.8vw, 1.9rem);
+    font-weight: 760;
+    letter-spacing: -.035em;
+    line-height: 1.08;
+}
+
+.ss-hero-subtitle {
+    color: var(--muted);
+    font-size: .83rem;
+    margin-top: .32rem;
+}
+
+.ss-meta-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .42rem;
+    align-items: center;
+    margin-top: .65rem;
+    color: var(--muted);
+    font-size: .72rem;
+}
+
+.ss-meta-sep {
+    color: #CBD5E1;
+}
+
+.ss-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    padding: .18rem .48rem;
+    border-radius: 999px;
+    font-size: .66rem;
+    font-weight: 750;
+}
+
+.ss-status-draft {
+    background: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid #FDE68A;
+}
+
+.ss-status-final {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid #A7F3D0;
+}
+
+/* ---------------- Stepper ---------------- */
+.ss-progress-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    margin: .55rem 0 .9rem 0;
+}
+
+.ss-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: #475569;
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.ss-progress-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem 1rem;
+    margin-top: .65rem;
+}
+
+.ss-step {
+    display: inline-flex;
+    align-items: center;
+    gap: .34rem;
+    color: var(--muted);
+    font-size: .71rem;
+    white-space: nowrap;
+}
+
+.ss-step-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--border-strong);
+}
+
+.ss-step.done {
+    color: #334155;
+    font-weight: 700;
+}
+
+.ss-step.done .ss-step-dot {
+    background: var(--brand);
+    box-shadow: 0 0 0 3px rgba(15,118,110,.09);
+}
+
+/* ---------------- Tabs ---------------- */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1rem;
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    padding: 0;
+    margin-bottom: .8rem;
+    overflow-x: auto;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 41px;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 2px !important;
+    color: var(--muted) !important;
+    font-size: .82rem;
+    font-weight: 650;
+    box-shadow: none !important;
+    white-space: nowrap;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--ink) !important;
+    border-bottom: 2px solid var(--brand) !important;
+}
+
+/* ---------------- Containers e tipografia ---------------- */
+div[data-testid="stVerticalBlock"] > div[style*="border"] {
+    background: rgba(255,255,255,.99);
+    border: 1px solid #E7ECF2 !important;
+    border-radius: 14px !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+}
+
+h1, h2, h3, h4 {
+    letter-spacing: -.025em;
+}
+
+.ss-group-title {
+    color: var(--ink);
+    font-size: .79rem;
+    font-weight: 750;
+    margin-bottom: .12rem;
+}
+
+.ss-group-sub {
+    color: var(--muted);
+    font-size: .71rem;
+    margin-bottom: .45rem;
+}
+
+.ss-required {
+    color: var(--danger);
+    font-size: .68rem;
+    font-weight: 700;
+    margin-left: .18rem;
+}
+
+.ss-inline-ok,
+.ss-inline-warn {
+    font-size: .68rem;
+    margin-top: -.25rem;
+    margin-bottom: .35rem;
+}
+
+.ss-inline-ok { color: var(--success); }
+.ss-inline-warn { color: var(--warning); }
+
+.ss-dependent-block {
+    background: #FAFCFD;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--brand);
+    border-radius: 10px;
+    padding: .65rem .75rem .25rem .75rem;
+    margin: .35rem 0 .65rem 0;
+}
+
+.ss-result-state {
+    border-radius: 10px;
+    padding: .58rem .72rem;
+    font-size: .75rem;
+    font-weight: 700;
+    margin: .3rem 0 .7rem 0;
+}
+.ss-result-ok {
+    color: var(--success);
+    background: var(--success-bg);
+    border: 1px solid #A7F3D0;
+}
+.ss-result-warn {
+    color: var(--warning);
+    background: var(--warning-bg);
+    border: 1px solid #FDE68A;
+}
+
+/* ---------------- Inputs ---------------- */
 .stTextInput input,
 .stDateInput input,
 .stTextArea textarea,
 div[data-baseweb="select"] > div {
-    border-radius: 10px !important;
-    border-color: var(--ss-border-strong) !important;
+    border-radius: 9px !important;
+    border-color: var(--border-strong) !important;
     background: #FFFFFF !important;
 }
 
 .stTextInput input:focus,
 .stTextArea textarea:focus,
-.stDateInput input:focus {
-    border-color: #60A5FA !important;
-    box-shadow: 0 0 0 3px rgba(37,99,235,.10) !important;
+.stDateInput input:focus,
+div[data-baseweb="select"] > div:focus-within {
+    border-color: var(--brand) !important;
+    box-shadow: 0 0 0 3px rgba(15,118,110,.09) !important;
 }
 
 .stTextArea textarea {
-    min-height: 105px;
+    min-height: 98px;
 }
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    background: #E9EEF6;
-    border-radius: 13px;
-    padding: 4px;
-    margin-bottom: .85rem;
+/* Radio/checkbox: neutraliza o vermelho padrão e usa a identidade S&S */
+[data-testid="stRadio"] [aria-checked="true"] > div:first-child,
+[data-testid="stRadio"] [data-baseweb="radio"] input:checked + div {
+    border-color: var(--brand) !important;
+    background-color: var(--brand) !important;
 }
 
-.stTabs [data-baseweb="tab"] {
-    height: 44px;
-    border-radius: 10px;
-    border: 0 !important;
-    background: transparent;
-    color: #64748B;
-    font-size: .88rem;
-    font-weight: 650;
-    padding: 0 16px;
+[data-testid="stCheckbox"] input:checked + div,
+[data-testid="stCheckbox"] [aria-checked="true"] > div:first-child {
+    background-color: var(--brand) !important;
+    border-color: var(--brand) !important;
 }
 
-.stTabs [aria-selected="true"] {
-    background: #FFFFFF !important;
-    color: var(--ss-navy) !important;
-    box-shadow: 0 2px 8px rgba(15,23,42,.08);
+[data-testid="stCheckbox"] svg,
+[data-testid="stRadio"] svg {
+    color: #FFFFFF !important;
 }
 
-/* Botões */
+/* Segmented control */
+[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+    background: var(--brand-soft) !important;
+    color: var(--brand-strong) !important;
+    border-color: #99F6E4 !important;
+}
+
+/* ---------------- Botões ---------------- */
 .stButton > button,
 .stDownloadButton > button {
-    border-radius: 10px !important;
-    min-height: 42px;
-    font-weight: 650 !important;
-    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    min-height: 41px;
+    border-radius: 9px !important;
+    font-weight: 680 !important;
+    transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
 
 .stButton > button:hover,
 .stDownloadButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 5px 14px rgba(15,23,42,.08);
+    box-shadow: 0 4px 12px rgba(15,23,42,.065);
 }
 
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+    background: linear-gradient(135deg, var(--brand), var(--brand-alt)) !important;
     border: 0 !important;
-    box-shadow: 0 8px 20px rgba(37,99,235,.20);
+    color: #FFFFFF !important;
+    box-shadow: 0 7px 18px rgba(15,118,110,.17);
 }
 
-/* Histórico */
-.history-card {
-    background: rgba(255,255,255,.055);
-    border: 1px solid rgba(255,255,255,.10);
-    padding: 11px 12px;
-    border-radius: 11px;
-    margin: 8px 0 6px 0;
-    font-size: .80rem;
-    line-height: 1.45;
-    color: #CBD5E1;
+.stButton > button:focus-visible,
+.stDownloadButton > button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(15,118,110,.2) !important;
+    outline-offset: 2px !important;
 }
 
-.history-card b {
-    color: #FFFFFF;
-    font-size: .86rem;
-}
-
-/* Assinaturas */
+/* ---------------- Assinatura ---------------- */
 .signature-badge {
-    background: var(--ss-success-bg);
-    color: var(--ss-success);
-    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    background: var(--success-bg);
+    color: var(--success);
+    padding: .26rem .55rem;
     border-radius: 999px;
-    font-size: .78rem;
-    font-weight: 700;
-    display: inline-block;
-    margin: 6px 0 10px 0;
+    font-size: .69rem;
+    font-weight: 750;
     border: 1px solid #A7F3D0;
+    margin: .15rem 0 .65rem 0;
 }
 
-/* Evidências */
+.ss-sign-empty {
+    border: 1px dashed var(--border-strong);
+    background: #FBFDFE;
+    border-radius: 10px;
+    padding: .85rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: .73rem;
+    margin-top: .45rem;
+}
+
+[data-testid="stImage"] img {
+    border-radius: 8px;
+}
+
+canvas {
+    max-width: 100% !important;
+}
+
+/* ---------------- Evidências ---------------- */
+[data-testid="stFileUploader"] {
+    background: #FBFDFE;
+    border: 1px dashed #B8C4D2;
+    border-radius: 12px;
+    padding: 8px 10px;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: var(--brand);
+}
+
+.ss-evidence-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .7rem;
+    margin: .35rem 0 .7rem 0;
+}
+
 .ss-evidence-title {
-    color: var(--ss-navy);
-    font-size: .9rem;
-    font-weight: 700;
-    margin-bottom: .15rem;
+    color: var(--ink);
+    font-size: .86rem;
+    font-weight: 750;
 }
 
 .ss-evidence-caption {
-    color: var(--ss-muted);
-    font-size: .78rem;
+    color: var(--muted);
+    font-size: .68rem;
 }
 
-/* Finalização */
+.ss-evidence-counter {
+    display:inline-flex;
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:.22rem .48rem;
+    color:var(--muted);
+    background:#FFFFFF;
+    font-size:.68rem;
+    font-weight:700;
+}
+
+/* ---------------- Finalização ---------------- */
 .ss-finish-card {
-    background: linear-gradient(135deg, #F8FBFF, #FFFFFF);
-    border: 1px solid #DCE6F5;
-    border-radius: 18px;
-    padding: 20px 22px;
-    margin: 1.25rem 0 .85rem 0;
+    background: linear-gradient(135deg, #F7FBFA, #FFFFFF);
+    border: 1px solid #D9EAE7;
+    border-radius: 15px;
+    padding: 18px 20px;
+    margin: 1.15rem 0 .75rem 0;
 }
 
 .ss-finish-title {
-    color: var(--ss-navy);
-    font-size: 1.08rem;
-    font-weight: 750;
-    margin-bottom: .25rem;
+    color: var(--ink);
+    font-size: 1.02rem;
+    font-weight: 760;
 }
 
 .ss-finish-sub {
-    color: var(--ss-muted);
-    font-size: .84rem;
+    color: var(--muted);
+    font-size: .78rem;
+    margin-top: .18rem;
 }
 
-/* Status/alerts */
-[data-testid="stAlert"] {
+.ss-readiness {
+    display:grid;
+    grid-template-columns: repeat(5,minmax(0,1fr));
+    gap:.5rem;
+    margin-top:.75rem;
+}
+
+.ss-ready-item {
+    background:#FFFFFF;
+    border:1px solid var(--border);
+    border-radius:9px;
+    padding:.52rem .62rem;
+    color:#475569;
+    font-size:.69rem;
+    font-weight:650;
+}
+
+.ss-ready-item.ready {
+    border-color:#A7F3D0;
+    background:#F6FFFB;
+    color:var(--success);
+}
+
+.ss-ready-item.pending {
+    border-color:#FDE68A;
+    background:#FFFDF5;
+    color:var(--warning);
+}
+
+/* ---------------- Pós-geração ---------------- */
+.ss-generated {
+    border: 1px solid #A7F3D0;
+    background: var(--success-bg);
     border-radius: 12px;
+    padding: .8rem .9rem;
+    color: #065F46;
+    margin: .7rem 0;
 }
 
-/* Preview PDF */
 iframe {
-    border: 1px solid var(--ss-border) !important;
-    border-radius: 14px;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px;
     background: #FFFFFF;
-    box-shadow: 0 8px 28px rgba(15,23,42,.06);
+    box-shadow: var(--shadow-soft);
 }
 
-/* Mobile */
-@media (max-width: 900px) {
+/* Alerts */
+[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* ---------------- Responsividade ---------------- */
+@media (max-width: 980px) {
     [data-testid="stAppViewContainer"] > .main .block-container {
         padding-left: .85rem;
         padding-right: .85rem;
     }
-    .ss-hero {
-        padding: 18px;
-        border-radius: 16px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 0 10px;
-        font-size: .80rem;
+    .ss-readiness {
+        grid-template-columns: repeat(2,minmax(0,1fr));
     }
 }
 
-/* ================= PACOTE VISUAL 3 ================= */
-[data-testid="stAppViewContainer"] > .main .block-container {max-width:1320px!important;margin:0 auto!important;padding-top:1.15rem!important;}
-.ss-hero{padding:18px 22px!important;border-radius:16px!important;box-shadow:0 6px 24px rgba(15,23,42,.045)!important;}
-.ss-hero-title{font-size:clamp(1.55rem,1.8vw,1.95rem)!important;}
-.ss-hero-subtitle{font-size:.86rem!important;margin-top:.3rem!important;}
-.ss-meta-row{margin-top:.65rem!important;gap:.4rem!important}.ss-pill{padding:.28rem .58rem!important;font-size:.73rem!important}
-.ss-progress-card{padding:11px 14px!important;border-radius:12px!important;box-shadow:none!important}
-.ss-progress-steps{display:flex;flex-wrap:wrap;gap:.55rem .9rem;margin-top:.65rem;font-size:.74rem;color:#64748B}
-.ss-step{display:inline-flex;align-items:center;gap:.34rem}.ss-step-dot{width:7px;height:7px;border-radius:999px;background:#CBD5E1;display:inline-block}.ss-step.done .ss-step-dot{background:#10B981}.ss-step.done{color:#334155;font-weight:650}
-.stTabs [data-baseweb="tab-list"]{background:transparent!important;border-bottom:1px solid #E2E8F0;border-radius:0!important;padding:0!important;gap:1rem!important}
-.stTabs [data-baseweb="tab"]{background:transparent!important;border-radius:0!important;height:42px!important;padding:0 2px!important;color:#64748B!important;box-shadow:none!important}
-.stTabs [aria-selected="true"]{color:#0F172A!important;border-bottom:2px solid #0F766E!important;box-shadow:none!important}
-.stButton>button[kind="primary"]{background:linear-gradient(135deg,#0F766E,#0E7490)!important;box-shadow:0 7px 18px rgba(15,118,110,.18)!important}
-.ss-pill-blue{color:#0F766E!important;background:#F0FDFA!important;border-color:#99F6E4!important}.ss-progress-fill{background:linear-gradient(90deg,#0F766E,#0E7490)!important}
-div[data-testid="stVerticalBlock"]>div[style*="border"]{border-radius:14px!important;box-shadow:none!important;border-color:#E7ECF2!important}
-.ss-group-title{color:#0F172A;font-size:.82rem;font-weight:750;margin-bottom:.15rem}.ss-group-sub{color:#64748B;font-size:.74rem;margin-bottom:.55rem}.ss-required{display:inline-block;margin-left:.35rem;padding:.12rem .38rem;border-radius:999px;background:#FEF2F2;color:#B91C1C;font-size:.63rem;font-weight:700;vertical-align:middle}
-.history-card{padding:10px 11px!important;border-radius:10px!important;margin:6px 0 5px 0!important;background:rgba(255,255,255,.045)!important}.history-card .hc-id{font-size:.67rem;color:#93C5FD;margin-bottom:.15rem}.history-card .hc-meta{color:#CBD5E1;font-size:.74rem;margin-top:.18rem}.history-card .hc-status{display:inline-block;margin-top:.38rem;padding:.16rem .42rem;border-radius:999px;background:rgba(16,185,129,.14);color:#A7F3D0;font-size:.66rem;font-weight:700}
-[data-testid="stFileUploader"]{background:#FBFDFE;border:1px dashed #B8C4D2;border-radius:14px;padding:8px 10px}[data-testid="stFileUploader"]:hover{border-color:#0F766E}
-.ss-sign-empty{border:1px dashed #CBD5E1;background:#FAFCFE;border-radius:12px;padding:1rem;text-align:center;color:#64748B;font-size:.78rem}
-.ss-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-top:.75rem}.ss-summary-item{background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:.62rem .7rem}.ss-summary-label{color:#64748B;font-size:.66rem;text-transform:uppercase;font-weight:750;letter-spacing:.04em}.ss-summary-value{color:#0F172A;font-size:.78rem;font-weight:700;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:980px){.ss-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.ss-summary-grid{grid-template-columns:1fr}.ss-progress-steps{gap:.45rem .6rem}.stTabs [data-baseweb="tab-list"]{overflow-x:auto!important;flex-wrap:nowrap!important}.stTabs [data-baseweb="tab"]{min-width:max-content!important}}
-
+@media (max-width: 640px) {
+    .ss-hero {
+        padding: 15px 16px;
+    }
+    .ss-hero-title {
+        font-size: 1.42rem;
+    }
+    .ss-readiness {
+        grid-template-columns: 1fr;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        min-width: max-content !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -742,9 +950,16 @@ def limpar_estado_widgets_relatorio():
     """Evita valores antigos dos widgets ao criar ou abrir outro relatório."""
     for chave in [
         "ig_entidade",
+        "ig_sistema",
+        "ig_setor",
         "ig_data_visita",
         "ig_nome_usuario",
+        "ig_email",
         "ig_whatsapp",
+        "ig_responsavel",
+        "ig_periodo",
+        "ig_turno_segment",
+        "ig_turno_radio",
         "ac_nome_usuario",
         "ac_whatsapp_usuario",
         "ac_whatsapp_coordenador",
@@ -861,31 +1076,58 @@ def otimizar_foto(uploaded_file, max_dim=1600, qualidade=82) -> bytes:
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
     with st.container(border=True):
         st.markdown(f"#### {titulo}")
-        st.caption("Assine diretamente no quadro ou envie uma imagem da assinatura.")
+        sig_val = modelo_ref.area_cliente.get(campo_modelo)
+
+        # Após salvar, mostra somente a assinatura e a opção de refazer.
+        if sig_val:
+            st.markdown('<div class="signature-badge">✓ Assinatura registrada</div>', unsafe_allow_html=True)
+            try:
+                sig_bytes = base64.b64decode(sig_val) if isinstance(sig_val, str) else sig_val
+                st.image(sig_bytes, width=240)
+            except Exception as e:
+                st.warning(f"A assinatura foi registrada, mas não pôde ser pré-visualizada: {e}")
+
+            if st.button(
+                "Refazer assinatura",
+                key=f"btn_refazer_{key_prefix}",
+                use_container_width=True
+            ):
+                modelo_ref.area_cliente[campo_modelo] = None
+                for chave in [
+                    f"canvas_{key_prefix}",
+                    f"metodo_{key_prefix}",
+                    f"upload_{key_prefix}",
+                ]:
+                    st.session_state.pop(chave, None)
+                st.rerun()
+            return
+
+        st.caption("Assine no quadro abaixo ou envie uma imagem da assinatura.")
 
         metodo = st.radio(
             "Forma de assinatura",
-            ["Desenhar na Tela", "Enviar Imagem"],
+            ["Desenhar na tela", "Enviar imagem"],
             horizontal=True,
             key=f"metodo_{key_prefix}",
             label_visibility="collapsed"
         )
 
-        if metodo == "Desenhar na Tela":
+        if metodo == "Desenhar na tela":
+            st.markdown('<div class="ss-sign-empty">Use o mouse, caneta ou toque para assinar.</div>', unsafe_allow_html=True)
             canvas_result = st_canvas(
                 fill_color="rgba(255,255,255,0)",
                 stroke_width=2,
                 stroke_color="#0F172A",
                 background_color="#FFFFFF",
-                height=170,
-                width=420,
+                height=180,
+                width=500,
                 drawing_mode="freedraw",
                 update_streamlit=True,
                 return_image_data=True,
                 key=f"canvas_{key_prefix}"
             )
 
-            c_salvar, c_limpar = st.columns(2)
+            c_salvar, c_limpar = st.columns([2, 1])
             with c_salvar:
                 salvar = st.button(
                     "Salvar assinatura",
@@ -895,13 +1137,14 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
                 )
             with c_limpar:
                 limpar = st.button(
-                    "Limpar assinatura",
+                    "Limpar",
                     key=f"btn_limpar_canvas_{key_prefix}",
                     use_container_width=True
                 )
 
             if limpar:
                 modelo_ref.area_cliente[campo_modelo] = None
+                st.session_state.pop(f"canvas_{key_prefix}", None)
                 st.rerun()
 
             if salvar:
@@ -930,24 +1173,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             if uploaded_file is not None:
                 modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
                 st.toast("Assinatura carregada.", icon="✅")
-
-        sig_val = modelo_ref.area_cliente.get(campo_modelo)
-        if not sig_val:
-            st.markdown('<div class="ss-sign-empty">Assinatura ainda não registrada.</div>', unsafe_allow_html=True)
-        if sig_val:
-            st.markdown('<div class="signature-badge">✓ Assinatura registrada</div>', unsafe_allow_html=True)
-            try:
-                sig_bytes = base64.b64decode(sig_val) if isinstance(sig_val, str) else sig_val
-                st.image(sig_bytes, width=220)
-                if st.button(
-                    "Remover assinatura",
-                    key=f"btn_remover_{key_prefix}",
-                    use_container_width=False
-                ):
-                    modelo_ref.area_cliente[campo_modelo] = None
-                    st.rerun()
-            except Exception as e:
-                st.warning(f"A assinatura foi registrada, mas não pôde ser pré-visualizada: {e}")
+                st.rerun()
 
 
 # ==========================================
@@ -1011,9 +1237,10 @@ modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
     st.markdown("## Painel de controle")
-    st.caption("Relatórios, histórico e configurações.")
+    st.caption("Relatórios de atendimento presencial")
 
-    if st.button("Novo relatório", use_container_width=True):
+    st.markdown('<div class="ss-side-kicker">Relatório</div>', unsafe_allow_html=True)
+    if st.button("＋ Novo relatório", use_container_width=True):
         excluir_rascunho_db()
         st.session_state["relatorio_model"] = RelatorioModel()
         st.session_state["draft_hash"] = None
@@ -1023,21 +1250,29 @@ with st.sidebar:
         st.rerun()
 
     if st.session_state.get("rascunho_recuperado"):
-        st.info(f"Rascunho recuperado em {st.session_state['rascunho_recuperado']}")
+        st.markdown(
+            f'<div class="ss-side-note">↻ Rascunho recuperado<br>'
+            f'<b>{html.escape(str(st.session_state["rascunho_recuperado"]))}</b></div>',
+            unsafe_allow_html=True
+        )
 
-    st.markdown("---")
+    st.markdown('<div class="ss-side-kicker">Configurações</div>', unsafe_allow_html=True)
     with st.expander("Cadastrar novo sistema"):
-        novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex.: Novo Sistema...")
-        if st.button("Adicionar sistema", use_container_width=True):
+        novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex.: Novo Sistema...", key="novo_sistema_sidebar")
+        if st.button("Adicionar sistema", use_container_width=True, key="btn_add_sistema"):
             if adicionar_sistema_db(novo_sis_input):
                 st.toast("Sistema adicionado.", icon="✅")
                 st.rerun()
             else:
                 st.warning("O sistema já existe ou o nome está vazio.")
 
-    st.markdown("---")
-    st.subheader("Histórico")
-    termo_busca = st.text_input("Pesquisar relatórios", placeholder="Entidade, usuário, sistema ou ID...")
+    st.markdown('<div class="ss-side-kicker">Histórico</div>', unsafe_allow_html=True)
+    termo_busca = st.text_input(
+        "Pesquisar relatórios",
+        placeholder="Entidade, usuário, sistema ou ID...",
+        key="busca_historico",
+        label_visibility="collapsed"
+    )
 
     try:
         conn_h = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -1059,32 +1294,40 @@ with st.sidebar:
 
         if historico_rows:
             for h_id, h_data, h_ent, h_sis, h_user, h_report_id, h_status, h_json in historico_rows:
-                with st.container():
-                    st.markdown(f"""
-                    <div class="history-card">
-                        <div class="hc-id">{h_report_id or 'ID legado'}</div>
-                        <b>{h_ent}</b>
-                        <div class="hc-meta">{h_sis or 'Sistema não informado'} · {h_user or 'Usuário não informado'} · {h_data}</div>
-                        <span class="hc-status">{h_status or 'Finalizado'}</span>
+                status_exib = h_status or "Finalizado"
+                st.markdown(f"""
+                <div class="history-card">
+                    <div class="hc-id">{html.escape(str(h_report_id or "ID legado"))}</div>
+                    <b>{html.escape(str(h_ent or "Entidade não informada"))}</b>
+                    <div class="hc-meta">
+                        {html.escape(str(h_sis or "Sistema não informado"))}<br>
+                        {html.escape(str(h_data or ""))}
                     </div>
-                    """, unsafe_allow_html=True)
-                    if st.button("Abrir relatório", key=f"carregar_{h_id}", use_container_width=True):
-                        try:
-                            dados_carregados = json.loads(h_json)
-                            st.session_state["relatorio_model"] = modelo_from_dict(dados_carregados, h_report_id)
-                            st.session_state["draft_hash"] = None
-                            st.session_state.pop("rascunho_recuperado", None)
-                            limpar_estado_widgets_relatorio()
-                            st.success(f"Relatório {h_report_id or ''} carregado com sucesso!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao carregar: {e}")
-                st.markdown("")
+                    <span class="hc-status">{html.escape(str(status_exib))}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("Abrir", key=f"carregar_{h_id}", use_container_width=True):
+                    try:
+                        dados_carregados = json.loads(h_json)
+                        st.session_state["relatorio_model"] = modelo_from_dict(dados_carregados, h_report_id)
+                        st.session_state["draft_hash"] = None
+                        st.session_state.pop("rascunho_recuperado", None)
+                        limpar_estado_widgets_relatorio()
+                        st.toast(f"Relatório {h_report_id or ''} carregado.", icon="✅")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao carregar: {e}")
         else:
-            st.markdown("<small style='color: #94a3b8;'>Nenhum registro encontrado.</small>", unsafe_allow_html=True)
-    except Exception as e:
-        st.markdown("<small style='color: #94a3b8;'>Não foi possível consultar o histórico.</small>", unsafe_allow_html=True)
-
+            st.markdown(
+                '<div class="ss-side-note">Nenhum relatório encontrado.<br>'
+                'Tente outro nome, sistema ou ID.</div>',
+                unsafe_allow_html=True
+            )
+    except Exception:
+        st.markdown(
+            '<div class="ss-side-note">Não foi possível consultar o histórico.</div>',
+            unsafe_allow_html=True
+        )
 
 
 # Cabeçalho principal e progresso visual
@@ -1130,28 +1373,41 @@ def calcular_estado_visual(modelo_ref):
 
 estado_visual = calcular_estado_visual(modelo)
 status_relatorio = "Finalizado" if st.session_state.get("ultimo_report_id") == modelo.report_id and modelo.report_id else "Rascunho"
-status_class = "ss-pill-green" if status_relatorio == "Finalizado" else "ss-pill-blue"
-id_exibicao = modelo.report_id or "Será criado automaticamente"
-salvamento_exibicao = st.session_state.get("last_draft_save") or "Aguardando alterações"
+status_class = "ss-status-final" if status_relatorio == "Finalizado" else "ss-status-draft"
+id_exibicao = modelo.report_id or "ID criado no primeiro salvamento"
 
-col_logo, col_hero = st.columns([1.35, 4.65], vertical_alignment="center")
+salvamento_raw = st.session_state.get("last_draft_save")
+if salvamento_raw:
+    try:
+        salvamento_exibicao = datetime.strptime(salvamento_raw, "%d/%m/%Y %H:%M:%S").strftime("%H:%M")
+    except Exception:
+        salvamento_exibicao = str(salvamento_raw)[-8:-3] if len(str(salvamento_raw)) >= 8 else str(salvamento_raw)
+else:
+    salvamento_exibicao = None
+
+col_logo, col_hero = st.columns([1.2, 4.8], vertical_alignment="center")
 with col_logo:
     if LOGO_BYTES:
-        st.image(LOGO_BYTES, width=260)
+        st.image(LOGO_BYTES, width=245)
 
 with col_hero:
+    salvo_html = (
+        f'<span class="ss-meta-sep">•</span><span>✓ Salvo às {html.escape(salvamento_exibicao)}</span>'
+        if salvamento_exibicao else
+        '<span class="ss-meta-sep">•</span><span>Aguardando alterações</span>'
+    )
     st.markdown(
         f"""
         <div class="ss-hero">
             <div class="ss-section-kicker">Atendimento técnico em campo</div>
             <div class="ss-hero-title">Relatório de Atendimento Presencial</div>
             <div class="ss-hero-subtitle">
-                Registro operacional de serviços, resultados, assinaturas e evidências do atendimento.
+                Registro operacional de serviços, resultados, assinaturas e evidências.
             </div>
-            <div class="ss-meta-row">
-                <span class="ss-pill {status_class}">{status_relatorio}</span>
-                <span class="ss-pill">ID: {html.escape(id_exibicao)}</span>
-                <span class="ss-pill">Autosave: {html.escape(str(salvamento_exibicao))}</span>
+            <div class="ss-meta-line">
+                <span class="ss-status {status_class}">{status_relatorio}</span>
+                <span>{html.escape(id_exibicao)}</span>
+                {salvo_html}
             </div>
         </div>
         """,
@@ -1163,9 +1419,8 @@ st.markdown(
     <div class="ss-progress-card">
         <div class="ss-progress-head">
             <span>Progresso do relatório</span>
-            <span>{estado_visual['concluidas']} de 5 etapas · {estado_visual['percentual']}%</span>
+            <span>{estado_visual['concluidas']} de 5 etapas concluídas</span>
         </div>
-        <div class="ss-progress-track"><div class="ss-progress-fill" style="width:{estado_visual['percentual']}%"></div></div>
         <div class="ss-progress-steps">
             <span class="ss-step {'done' if estado_visual['info'] else ''}"><span class="ss-step-dot"></span>Informações</span>
             <span class="ss-step {'done' if estado_visual['serv'] else ''}"><span class="ss-step-dot"></span>Serviços</span>
@@ -1180,11 +1435,10 @@ st.markdown(
 
 marca = lambda ok: " ✓" if ok else ""
 qtd_evid = len(modelo.anexos)
-rotulo_evid = f"Evidências {qtd_evid}" if qtd_evid else "Evidências"
+rotulo_evid = f"Evidências ({qtd_evid})" if qtd_evid else "Evidências"
 
-# Abas do formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"Informações Gerais{marca(estado_visual['info'])}",
+    f"Informações{marca(estado_visual['info'])}",
     f"Serviços{marca(estado_visual['serv'])}",
     f"Resultados{marca(estado_visual['result'])}",
     f"Área do Cliente{marca(estado_visual['cliente'])}",
@@ -1194,11 +1448,12 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     with st.container(border=True):
         st.markdown("### Informações Gerais")
-        st.caption("Dados da entidade, usuário e contexto do atendimento.")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown('<div class="ss-group-title">Entidade <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="ss-group-sub">Órgão ou entidade onde o atendimento foi realizado.</div>', unsafe_allow_html=True)
+        st.caption("Dados da entidade, do usuário atendido e do atendimento realizado. * Campos obrigatórios.")
+
+        st.markdown("#### Entidade e sistema")
+        c_ent, c_sis, c_set = st.columns([2, 1.25, 1.2])
+        with c_ent:
+            st.markdown('<div class="ss-group-title">Entidade <span class="ss-required">*</span></div>', unsafe_allow_html=True)
             modelo.informacoes_gerais["entidade"] = st.text_input(
                 "Entidade",
                 value=modelo.informacoes_gerais["entidade"],
@@ -1206,19 +1461,38 @@ with tab1:
                 key="ig_entidade",
                 on_change=sincronizar_entidade_local
             )
-            
+
+        with c_sis:
             lista_sistemas_atual = carregar_sistemas_db()
             sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
             try:
                 idx_sis = lista_sistemas_atual.index(sistema_atual)
             except ValueError:
                 idx_sis = 0
-            st.markdown('<div class="ss-group-title">Sistema <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
-            sistema_esc = st.selectbox("Sistema", lista_sistemas_atual, index=idx_sis, label_visibility="collapsed")
+            st.markdown('<div class="ss-group-title">Sistema <span class="ss-required">*</span></div>', unsafe_allow_html=True)
+            sistema_esc = st.selectbox(
+                "Sistema",
+                lista_sistemas_atual,
+                index=idx_sis,
+                label_visibility="collapsed",
+                key="ig_sistema"
+            )
             modelo.informacoes_gerais["sistema"] = "" if sistema_esc == "Selecione o sistema..." else sistema_esc
 
-            modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
-            st.markdown('<div class="ss-group-title">Usuário atendido <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
+        with c_set:
+            st.markdown('<div class="ss-group-title">Setor</div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["setor"] = st.text_input(
+                "Setor",
+                value=modelo.informacoes_gerais["setor"],
+                key="ig_setor",
+                label_visibility="collapsed"
+            )
+
+        st.divider()
+        st.markdown("#### Usuário atendido")
+        c_nome, c_email, c_wpp = st.columns([1.45, 1.35, 1])
+        with c_nome:
+            st.markdown('<div class="ss-group-title">Nome do usuário <span class="ss-required">*</span></div>', unsafe_allow_html=True)
             modelo.informacoes_gerais["nome_usuario"] = st.text_input(
                 "Nome do Usuário",
                 value=modelo.informacoes_gerais["nome_usuario"],
@@ -1226,10 +1500,25 @@ with tab1:
                 key="ig_nome_usuario",
                 on_change=sincronizar_nome_usuario
             )
-            modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
-        with col2:
+
+        with c_email:
+            st.markdown('<div class="ss-group-title">E-mail</div>', unsafe_allow_html=True)
+            email_atual = st.text_input(
+                "E-mail",
+                value=modelo.informacoes_gerais["email"],
+                key="ig_email",
+                label_visibility="collapsed",
+                placeholder="usuario@dominio.com"
+            )
+            modelo.informacoes_gerais["email"] = email_atual
+            if email_atual:
+                if validar_email(email_atual):
+                    st.markdown('<div class="ss-inline-ok">✓ E-mail válido</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="ss-inline-warn">Informe um e-mail válido.</div>', unsafe_allow_html=True)
+
+        with c_wpp:
             st.markdown('<div class="ss-group-title">WhatsApp</div>', unsafe_allow_html=True)
-            st.markdown('<div class="ss-group-sub">Informe 11 números: DDD + celular. Ex.: 85999999999</div>', unsafe_allow_html=True)
             raw_wpp = st.text_input(
                 "WhatsApp",
                 value=somente_digitos_whatsapp(modelo.informacoes_gerais["whatsapp"]),
@@ -1240,27 +1529,83 @@ with tab1:
                 on_change=sincronizar_whatsapp_usuario
             )
             modelo.informacoes_gerais["whatsapp"] = somente_digitos_whatsapp(raw_wpp)
-            if raw_wpp and len(somente_digitos_whatsapp(raw_wpp)) < 11:
-                st.caption(f"{len(somente_digitos_whatsapp(raw_wpp))}/11 dígitos")
+            qtd_wpp = len(somente_digitos_whatsapp(raw_wpp))
+            if raw_wpp:
+                if qtd_wpp == 11:
+                    st.markdown(
+                        f'<div class="ss-inline-ok">✓ {html.escape(limpar_telefone(raw_wpp))}</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f'<div class="ss-inline-warn">{qtd_wpp}/11 números</div>',
+                        unsafe_allow_html=True
+                    )
 
+        st.divider()
+        st.markdown("#### Atendimento")
+        c_data, c_resp, c_periodo, c_turno = st.columns([1, 1.55, 1.15, 1.35])
+
+        with c_data:
+            st.markdown('<div class="ss-group-title">Data da visita</div>', unsafe_allow_html=True)
             modelo.informacoes_gerais["data_visita"] = st.date_input(
                 "Data da Visita",
                 value=modelo.informacoes_gerais["data_visita"],
                 format="DD/MM/YYYY",
                 key="ig_data_visita",
+                label_visibility="collapsed",
                 on_change=sincronizar_data_visita
             )
-            st.markdown('<div class="ss-group-title">Responsável pelo atendimento <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="ss-group-sub">Profissional do Grupo S&S responsável pela visita.</div>', unsafe_allow_html=True)
-            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"], label_visibility="collapsed")
-            modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
-            
-            turno_map = {"M": 0, "T": 1, "N": 2}
-            turno_atual = modelo.informacoes_gerais.get("turno", "M")
-            turno_escolhido = st.radio("Turno", ["M — Manhã", "T — Tarde", "N — Noite"], index=turno_map.get(turno_atual, 0), horizontal=True)
-            modelo.informacoes_gerais["turno"] = turno_escolhido[0]
 
-        modelo.informacoes_gerais["descricao"] = st.text_area("Descrição do Atendimento", value=modelo.informacoes_gerais["descricao"])
+        with c_resp:
+            st.markdown('<div class="ss-group-title">Responsável <span class="ss-required">*</span></div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input(
+                "Responsável pelo Atendimento",
+                value=modelo.informacoes_gerais["responsavel_atendimento"],
+                label_visibility="collapsed",
+                key="ig_responsavel"
+            )
+
+        with c_periodo:
+            st.markdown('<div class="ss-group-title">Período</div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["periodo_atendimento"] = st.text_input(
+                "Período de Atendimento",
+                value=modelo.informacoes_gerais["periodo_atendimento"],
+                label_visibility="collapsed",
+                key="ig_periodo",
+                placeholder="Ex.: 08:00 às 12:00"
+            )
+
+        with c_turno:
+            st.markdown('<div class="ss-group-title">Turno</div>', unsafe_allow_html=True)
+            turno_atual = modelo.informacoes_gerais.get("turno", "M")
+            opcoes_turno = ["Manhã", "Tarde", "Noite"]
+            mapa_turno = {"M": "Manhã", "T": "Tarde", "N": "Noite"}
+            mapa_codigo = {"Manhã": "M", "Tarde": "T", "Noite": "N"}
+            if hasattr(st, "segmented_control"):
+                turno_escolhido = st.segmented_control(
+                    "Turno",
+                    opcoes_turno,
+                    default=mapa_turno.get(turno_atual, "Manhã"),
+                    key="ig_turno_segment",
+                    label_visibility="collapsed"
+                )
+            else:
+                turno_escolhido = st.radio(
+                    "Turno",
+                    opcoes_turno,
+                    index=opcoes_turno.index(mapa_turno.get(turno_atual, "Manhã")),
+                    horizontal=True,
+                    key="ig_turno_radio",
+                    label_visibility="collapsed"
+                )
+            modelo.informacoes_gerais["turno"] = mapa_codigo.get(turno_escolhido, "M")
+
+        modelo.informacoes_gerais["descricao"] = st.text_area(
+            "Descrição do Atendimento",
+            value=modelo.informacoes_gerais["descricao"],
+            placeholder="Registre de forma objetiva o que foi realizado durante o atendimento."
+        )
 
 with tab2:
     with st.container(border=True):
@@ -1277,12 +1622,12 @@ with tab2:
             modelo.servico_executado["visita"] = st.checkbox("Visita", value=modelo.servico_executado["visita"])
 
         if modelo.servico_executado["visita"]:
-            st.markdown("##### Marque o tipo de visita:")
+            st.markdown('<div class="ss-dependent-block"><b>Tipo de visita</b><br><span style="color:#64748B;font-size:.72rem">Selecione pelo menos uma opção.</span></div>', unsafe_allow_html=True)
             t_vis = modelo.servico_executado.get("tipo_visita", [])
-            rt = st.checkbox("Relacionamento Técnica", value="Relacionamento Técnica" in t_vis)
+            rt = st.checkbox("Relacionamento Técnico", value=("Relacionamento Técnico" in t_vis or "Relacionamento Técnica" in t_vis))
             tp = st.checkbox("Técnica Preventiva", value="Técnica Preventiva" in t_vis)
             sel_t = []
-            if rt: sel_t.append("Relacionamento Técnica")
+            if rt: sel_t.append("Relacionamento Técnico")
             if tp: sel_t.append("Técnica Preventiva")
             modelo.servico_executado["tipo_visita"] = sel_t
 
@@ -1299,9 +1644,28 @@ with tab3:
         modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
         modelo.resultado_atendimento["outros"] = st.checkbox("Outros", value=modelo.resultado_atendimento["outros"])
         
-        if modelo.resultado_atendimento.get("pendencias_posterior") or modelo.resultado_atendimento.get("pendencias_operador") or modelo.resultado_atendimento.get("cartoes"):
-            st.caption("Descreva abaixo as pendências, cartões ou providências identificadas.")
-        modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
+        tem_pendencia_visual = any([
+            modelo.resultado_atendimento.get("pendencias_posterior"),
+            modelo.resultado_atendimento.get("pendencias_operador"),
+            modelo.resultado_atendimento.get("cartoes"),
+            modelo.resultado_atendimento.get("outros")
+        ])
+        tem_resultado_visual = any(
+            modelo.resultado_atendimento.get(k)
+            for k in ["perfeito_funcionamento", "pendencias_posterior", "treinamento_sucesso", "pendencias_operador", "cartoes", "outros"]
+        )
+        if tem_resultado_visual:
+            if tem_pendencia_visual:
+                st.markdown('<div class="ss-result-state ss-result-warn">! Atendimento com pendências ou observações a detalhar.</div>', unsafe_allow_html=True)
+                st.caption("Descreva abaixo as pendências, cartões ou providências identificadas.")
+            else:
+                st.markdown('<div class="ss-result-state ss-result-ok">✓ Atendimento registrado sem pendências.</div>', unsafe_allow_html=True)
+
+        modelo.resultado_atendimento["observacoes"] = st.text_area(
+            "Observações do Resultado",
+            value=modelo.resultado_atendimento["observacoes"],
+            placeholder="Detalhe resultados, pendências ou providências quando necessário."
+        )
 
 with tab4:
     # Sincronização inicial das informações provenientes das Informações Gerais.
@@ -1392,13 +1756,20 @@ with tab4:
                 args=("ac_whatsapp_coordenador",)
             )
             modelo.area_cliente["whatsapp_coordenador"] = somente_digitos_whatsapp(raw_wpp_c)
-            capturar_assinatura("Assinatura Coordenador", "coordenador", modelo, "assinatura_coordenador")
+            capturar_assinatura("Assinatura do Coordenador", "coordenador", modelo, "assinatura_coordenador")
 
 
 with tab5:
     with st.container(border=True):
         st.markdown("### Evidências Anexadas")
-        st.caption("Anexe imagens relacionadas ao atendimento. No PDF, cada evidência será apresentada em uma página exclusiva.")
+        st.caption("Cada evidência será apresentada em uma página exclusiva do PDF.")
+        st.markdown(
+            f'<div class="ss-evidence-toolbar">'
+            f'<span class="ss-evidence-title">Arquivos do atendimento</span>'
+            f'<span class="ss-evidence-counter">{len(modelo.anexos)} / 12 evidências</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
         uploaded_photos = st.file_uploader(
             "Enviar imagens de evidência",
@@ -1463,7 +1834,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=letter,
+        pagesize=A4,
         rightMargin=34,
         leftMargin=34,
         topMargin=28,
@@ -1473,6 +1844,10 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     )
 
     story = []
+    page_width, page_height = A4
+    content_width = page_width - 68  # margens laterais de 34 pt
+    half_width = content_width / 2
+
     meta = dados.get("_meta", {})
     report_id = meta.get("report_id") or "RAT-NÃO-IDENTIFICADO"
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
@@ -1581,7 +1956,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     def section_header(titulo):
         linha = Table(
             [[Paragraph(esc(titulo), section_title_style), ""]],
-            colWidths=[220, 320]
+            colWidths=[205, content_width - 205]
         )
         linha.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
@@ -1599,11 +1974,11 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ]
 
     def tabela_campos(linhas):
-        tabela = Table(linhas, colWidths=[270, 270])
+        tabela = Table(linhas, colWidths=[half_width, half_width])
         tabela.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), white),
-            ("BOX", (0, 0), (-1, -1), 0.6, border),
-            ("INNERGRID", (0, 0), (-1, -1), 0.35, border),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.35, border),
+            ("LINEAFTER", (0, 0), (0, -1), 0.35, border),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("TOPPADDING", (0, 0), (-1, -1), 7),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
@@ -1618,7 +1993,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             Spacer(1, 2),
             Paragraph(esc(valor, "Nenhuma informação registrada."), value_style)
         ]
-        t = Table([[conteudo]], colWidths=[540])
+        t = Table([[conteudo]], colWidths=[content_width])
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), bg),
             ("BOX", (0, 0), (-1, -1), 0.6, border),
@@ -1655,7 +2030,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             ]))
             rows.append([box, Paragraph(esc(texto_item), value_style)])
 
-        t = Table(rows, colWidths=[25, 515])
+        t = Table(rows, colWidths=[25, content_width - 25])
         t.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -1675,10 +2050,10 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         Paragraph("RELATÓRIO DE ATENDIMENTO PRESENCIAL", title_style),
         Paragraph("Registro técnico de atendimento em campo", subtitle_style),
         Spacer(1, 4),
-        Paragraph(f"<b>{esc(report_id)}</b>", subtitle_style)
+        Paragraph(f"<b>{esc(report_id)}</b> &nbsp;&nbsp; • &nbsp;&nbsp; {esc(ig.get('data_visita', ''))}", subtitle_style)
     ]
 
-    header = Table([[logo_pdf, header_text]], colWidths=[190, 350])
+    header = Table([[logo_pdf, header_text]], colWidths=[180, content_width - 180])
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -1697,7 +2072,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         campo("Sistema", ig.get("sistema", "")),
         campo("Responsável", ig.get("responsavel_atendimento", "")),
     ]
-    meta_table = Table([meta_cells], colWidths=[135, 135, 135, 135])
+    meta_table = Table([meta_cells], colWidths=[content_width / 4] * 4)
     meta_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), blue_soft),
         ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#99F6E4")),
@@ -1718,15 +2093,15 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     if se.get("demonstracao_sistema"): servicos_selecionados.append("Demonstração")
     if se.get("visita"): servicos_selecionados.append("Visita")
     if se.get("outros"): servicos_selecionados.append("Outros")
-    tem_pendencia = any([ra.get("pendencias_posterior"), ra.get("pendencias_operador"), ra.get("cartoes")])
+    tem_pendencia = any([ra.get("pendencias_posterior"), ra.get("pendencias_operador"), ra.get("cartoes"), ra.get("outros")])
     resumo_rows = [[campo("Entidade", ig.get("entidade", "")), campo("Serviço", ", ".join(servicos_selecionados) if servicos_selecionados else "Não informado")], [campo("Resultado", "Com pendências" if tem_pendencia else "Sem pendências registradas"), campo("Evidências", str(len(anexos)))]]
     story.append(tabela_campos(resumo_rows))
     story.append(Spacer(1, 5))
     if tem_pendencia:
-        status_box = Table([[Paragraph("<b>Pendências identificadas</b><br/>" + esc(ra.get("observacoes", "Verificar observações do atendimento.")), value_style)]], colWidths=[540])
+        status_box = Table([[Paragraph("<b>Pendências identificadas</b><br/>" + esc(ra.get("observacoes", "Verificar observações do atendimento.")), value_style)]], colWidths=[content_width])
         status_box.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#FFFBEB")),("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#FCD34D")),("TOPPADDING",(0,0),(-1,-1),8),("BOTTOMPADDING",(0,0),(-1,-1),8),("LEFTPADDING",(0,0),(-1,-1),9),("RIGHTPADDING",(0,0),(-1,-1),9)]))
     else:
-        status_box = Table([[Paragraph("<b>Atendimento concluído sem pendências registradas.</b>", value_style)]], colWidths=[540])
+        status_box = Table([[Paragraph("<b>Atendimento concluído sem pendências registradas.</b>", value_style)]], colWidths=[content_width])
         status_box.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#ECFDF5")),("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#A7F3D0")),("TOPPADDING",(0,0),(-1,-1),7),("BOTTOMPADDING",(0,0),(-1,-1),7),("LEFTPADDING",(0,0),(-1,-1),9),("RIGHTPADDING",(0,0),(-1,-1),9)]))
     story.append(status_box)
     story.append(Spacer(1, 6))
@@ -1758,7 +2133,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         tipos = se.get("tipo_visita", [])
         story.append(Spacer(1, 3))
         story.append(checklist([
-            ("Relacionamento Técnica" in tipos, "Relacionamento Técnica"),
+            (("Relacionamento Técnico" in tipos or "Relacionamento Técnica" in tipos), "Relacionamento Técnico"),
             ("Técnica Preventiva" in tipos, "Técnica Preventiva")
         ]))
 
@@ -1801,7 +2176,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
         elementos.extend([
             Spacer(1, 4),
-            Table([[""]], colWidths=[210], rowHeights=[1], style=TableStyle([
+            Table([[""]], colWidths=[min(205, half_width - 26)], rowHeights=[1], style=TableStyle([
                 ("LINEABOVE", (0, 0), (-1, -1), 0.7, border_strong)
             ])),
             Paragraph(esc(nome, "Nome não informado"), signature_name_style),
@@ -1820,7 +2195,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             assinatura_flowable(ac.get("assinatura_usuario"), ac.get("nome_usuario"), "Usuário / responsável local"),
             assinatura_flowable(ac.get("assinatura_coordenador"), ac.get("nome_coordenador"), "Coordenador do setor")
         ]],
-        colWidths=[270, 270]
+        colWidths=[half_width, half_width]
     )
     ass_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -1838,18 +2213,22 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             # Cada evidência começa obrigatoriamente em uma nova página.
             PageBreak_evidencia = PageBreak()
             story.append(PageBreak_evidencia)
-            story.append(section_header("Evidências Anexadas"))
-            story.append(Spacer(1, 8))
+            # Página de evidência com cabeçalho reduzido para maximizar a imagem.
+            story.append(Paragraph(
+                f"<b>EVIDÊNCIA {idx + 1:02d}</b> &nbsp;&nbsp; {esc(report_id)}",
+                section_title_style
+            ))
+            story.append(Spacer(1, 6))
 
             try:
                 foto_val = item.get("foto")
                 foto_bytes = base64.b64decode(foto_val) if isinstance(foto_val, str) else foto_val
                 img_pil = Image.open(io.BytesIO(foto_bytes)).convert("RGB")
 
-                # Área máxima disponível da página Letter, preservando margens,
+                # Área máxima disponível da página A4, preservando margens,
                 # título da seção, legenda e rodapé.
-                max_w = 520
-                max_h = 600
+                max_w = content_width
+                max_h = 615
 
                 ratio = min(max_w / img_pil.width, max_h / img_pil.height)
                 img_w = img_pil.width * ratio
@@ -1863,19 +2242,18 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
                 legenda = item.get("legenda") or "Sem legenda"
 
-                evidencia_title = Paragraph(
-                    f"<b>Evidência {idx + 1} de {len(anexos)}</b>",
-                    section_title_style
-                )
-                story.append(evidencia_title)
-                story.append(Spacer(1, 5))
+                story.append(Paragraph(
+                    f"{idx + 1} de {len(anexos)} evidências anexadas",
+                    subtitle_style
+                ))
+                story.append(Spacer(1, 4))
 
                 # Centraliza a imagem horizontalmente e verticalmente dentro
                 # de uma área ampla da página.
                 imagem_container = Table(
                     [[img]],
-                    colWidths=[540],
-                    rowHeights=[610]
+                    colWidths=[content_width],
+                    rowHeights=[625]
                 )
                 imagem_container.setStyle(TableStyle([
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
@@ -1893,7 +2271,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
                         f"<b>Evidência {idx + 1}:</b> {esc(legenda)}",
                         caption_style
                     )]],
-                    colWidths=[540]
+                    colWidths=[content_width]
                 )
                 legenda_box.setStyle(TableStyle([
                     ("BACKGROUND", (0, 0), (-1, -1), bg),
@@ -1932,7 +2310,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             pdfcanvas.Canvas.save(self)
 
         def _draw_footer(self, total_pages):
-            largura, _ = letter
+            largura, _ = A4
             self.saveState()
             self.setStrokeColor(border)
             self.setLineWidth(0.45)
@@ -2038,47 +2416,54 @@ if tem_conteudo_para_rascunho(dados_atuais):
         except Exception as e:
             st.session_state["last_draft_error"] = str(e)
 
-if st.session_state.get("last_draft_save"):
-    st.markdown(
-        f"<div style='text-align:right; color:#64748b; font-size:.78rem; margin-top:.45rem;'>"
-        f"✓ Alterações salvas automaticamente às {st.session_state['last_draft_save']}</div>",
-        unsafe_allow_html=True
-    )
 if st.session_state.get("last_draft_error"):
     st.warning(f"O preenchimento continua normalmente, mas o rascunho não pôde ser salvo: {st.session_state['last_draft_error']}")
 
 entidade_resumo = modelo.informacoes_gerais.get("entidade") or "Não informada"
 sistema_resumo = modelo.informacoes_gerais.get("sistema") or "Não informado"
-data_resumo = modelo.informacoes_gerais.get("data_visita")
-assinaturas_ok = sum([1 if modelo.area_cliente.get("assinatura_usuario") else 0, 1 if modelo.area_cliente.get("assinatura_coordenador") else 0])
+assinaturas_ok = sum([
+    1 if modelo.area_cliente.get("assinatura_usuario") else 0,
+    1 if modelo.area_cliente.get("assinatura_coordenador") else 0
+])
+
+checks_final = [
+    ("Informações", estado_visual["info"]),
+    ("Serviços", estado_visual["serv"]),
+    ("Resultados", estado_visual["result"]),
+    ("Assinaturas", assinaturas_ok == 2),
+    ("Evidências", len(modelo.anexos) > 0),
+]
+
+readiness_html = "".join(
+    f'<div class="ss-ready-item {"ready" if ok else "pending"}">'
+    f'{"✓" if ok else "•"} {html.escape(nome)}</div>'
+    for nome, ok in checks_final
+)
 
 st.markdown(
     f"""
     <div class="ss-finish-card">
-        <div class="ss-finish-title">Pronto para finalizar</div>
-        <div class="ss-finish-sub">Revise o resumo. Ao gerar, os dados serão validados, salvos e o PDF oficial será emitido.</div>
-        <div class="ss-summary-grid">
-            <div class="ss-summary-item"><div class="ss-summary-label">Entidade</div><div class="ss-summary-value">{html.escape(str(entidade_resumo))}</div></div>
-            <div class="ss-summary-item"><div class="ss-summary-label">Sistema</div><div class="ss-summary-value">{html.escape(str(sistema_resumo))}</div></div>
-            <div class="ss-summary-item"><div class="ss-summary-label">Data</div><div class="ss-summary-value">{html.escape(str(data_resumo))}</div></div>
-            <div class="ss-summary-item"><div class="ss-summary-label">Evidências</div><div class="ss-summary-value">{len(modelo.anexos)}</div></div>
-            <div class="ss-summary-item"><div class="ss-summary-label">Assinaturas</div><div class="ss-summary-value">{assinaturas_ok}/2</div></div>
+        <div class="ss-finish-title">Revisão final</div>
+        <div class="ss-finish-sub">
+            {html.escape(str(entidade_resumo))} · {html.escape(str(sistema_resumo))}
         </div>
+        <div class="ss-readiness">{readiness_html}</div>
     </div>
     """,
     unsafe_allow_html=True
 )
+
 if st.button("Gerar relatório", type="primary", use_container_width=True):
     dados_val = modelo.to_dict()
     erros, avisos = validar_relatorio(dados_val)
 
     if erros:
-        st.error("O relatório precisa de alguns ajustes antes da geração:")
-        for err in erros:
-            st.error(err)
+        mensagem_erros = "\n".join(f"- {re.sub(r'\*\*', '', err)}" for err in erros)
+        st.error("Revise os campos antes de gerar:\n\n" + mensagem_erros)
     else:
-        for aviso in avisos:
-            st.warning(aviso)
+        if avisos:
+            mensagem_avisos = "\n".join(f"- {re.sub(r'\*\*', '', aviso)}" for aviso in avisos)
+            st.warning("Itens recomendados:\n\n" + mensagem_avisos)
 
         try:
             # Garante identificação única mesmo em relatórios antigos.
@@ -2091,6 +2476,10 @@ if st.button("Gerar relatório", type="primary", use_container_width=True):
             }
             content_hash = calcular_hash_conteudo({k: v for k, v in dados_val.items() if k != "_meta"})
 
+            status_geracao = st.status("Processando relatório...", expanded=True) if hasattr(st, "status") else None
+            if status_geracao:
+                status_geracao.write("Validando dados e verificando duplicidade...")
+
             conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute("SELECT report_id FROM historico WHERE content_hash = ? ORDER BY id DESC LIMIT 1", (content_hash,))
@@ -2098,9 +2487,15 @@ if st.button("Gerar relatório", type="primary", use_container_width=True):
 
             if duplicado and duplicado[0] != modelo.report_id:
                 conn.close()
+                if status_geracao:
+                    status_geracao.update(label="Duplicidade identificada", state="error", expanded=False)
                 st.warning(f"Este conteúdo já foi registrado no relatório **{duplicado[0]}**. A geração duplicada foi evitada.")
             else:
+                if status_geracao:
+                    status_geracao.write("Gerando PDF em formato A4...")
                 pdf_bytes = gerar_pdf_relatorio(dados_val)
+                if status_geracao:
+                    status_geracao.write("Atualizando histórico e backup...")
                 agora_db = datetime.now().strftime("%d/%m/%Y %H:%M")
                 dados_json = json.dumps(dados_val, ensure_ascii=False, default=str)
 
@@ -2150,7 +2545,14 @@ if st.button("Gerar relatório", type="primary", use_container_width=True):
                 st.session_state["ultimo_pdf"] = pdf_bytes
                 st.session_state["ultimo_report_id"] = modelo.report_id
 
-                st.success(f"Relatório **{modelo.report_id}** gerado, salvo e protegido contra duplicidade.")
+                if status_geracao:
+                    status_geracao.update(label="Relatório concluído", state="complete", expanded=False)
+
+                st.markdown(
+                    f'<div class="ss-generated"><b>✓ Relatório {html.escape(modelo.report_id)} gerado com sucesso.</b><br>'
+                    f'Histórico atualizado, PDF salvo e backup realizado.</div>',
+                    unsafe_allow_html=True
+                )
                 st.caption(f"PDF local: `{pdf_path}` • Backup do banco: `{backup_path}`")
 
                 col_dl, col_wpp = st.columns(2)
@@ -2169,14 +2571,19 @@ if st.button("Gerar relatório", type="primary", use_container_width=True):
                         msg = f"Olá, {dados_val['informacoes_gerais'].get('nome_usuario')}. Segue o resumo do atendimento presencial realizado no Grupo S&S para a entidade {dados_val['informacoes_gerais'].get('entidade')}. Relatório {modelo.report_id}."
                         import urllib.parse
                         link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
-                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">Enviar resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#16a34a; color:white; border:none; border-radius:9px; min-height:41px; padding:0.62rem 1.2rem; font-weight:680; width:100%; cursor:pointer;">Enviar resumo via WhatsApp</button></a>', unsafe_allow_html=True)
 
                 st.markdown("### Pré-visualização")
                 base64_pdf = io.BytesIO(pdf_bytes)
                 base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
-                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
+                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="820px" type="application/pdf"></iframe>'
                 st.markdown(pdf_display, unsafe_allow_html=True)
 
         except Exception as e:
+            try:
+                if status_geracao:
+                    status_geracao.update(label="Não foi possível concluir o relatório", state="error", expanded=False)
+            except Exception:
+                pass
             st.error(f"Erro ao processar relatório: {e}")
 
