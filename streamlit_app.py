@@ -13,7 +13,7 @@ from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas as pdfcanvas
@@ -677,15 +677,68 @@ def salvar_pdf_local(pdf_bytes: bytes, report_id: str, entidade: str) -> Path:
 # ==========================================
 # 4. AUXILIARES E MODELO DE DADOS
 # ==========================================
-def limpar_telefone(texto: str) -> str:
+def somente_digitos_whatsapp(texto: str) -> str:
+    """Mantém somente números e limita o WhatsApp ao padrão brasileiro com 11 dígitos."""
     if not texto:
         return ""
-    apenas_numeros = re.sub(r'[^0-9]', '', texto)
-    if len(apenas_numeros) == 11:
-        return f"({apenas_numeros[:2]}) {apenas_numeros[2]} {apenas_numeros[3:7]}-{apenas_numeros[7:]}"
-    elif len(apenas_numeros) == 10:
-        return f"({apenas_numeros[:2]}) {apenas_numeros[2:6]}-{apenas_numeros[6:]}"
-    return apenas_numeros
+    return re.sub(r"[^0-9]", "", str(texto))[:11]
+
+
+def limpar_telefone(texto: str) -> str:
+    """
+    Formata somente números completos no padrão brasileiro:
+    (99) 9 9999-9999
+    Durante o preenchimento, valores incompletos permanecem apenas numéricos.
+    """
+    digitos = somente_digitos_whatsapp(texto)
+    if len(digitos) == 11:
+        return f"({digitos[:2]}) {digitos[2]} {digitos[3:7]}-{digitos[7:]}"
+    return digitos
+
+
+def validar_whatsapp(texto: str) -> bool:
+    """WhatsApp válido: exatamente 11 dígitos, incluindo DDD."""
+    return len(somente_digitos_whatsapp(texto)) == 11
+
+
+def sanitizar_whatsapp_state(chave: str, chave_destino: str | None = None):
+    """
+    Callback dos campos Streamlit:
+    - remove qualquer caractere que não seja número;
+    - limita a 11 dígitos;
+    - opcionalmente sincroniza outro campo.
+    """
+    digitos = somente_digitos_whatsapp(st.session_state.get(chave, ""))
+    st.session_state[chave] = digitos
+    if chave_destino:
+        st.session_state[chave_destino] = digitos
+
+
+def sincronizar_nome_usuario():
+    """Replica o usuário das Informações Gerais para a Área do Cliente."""
+    nome = st.session_state.get("ig_nome_usuario", "")
+    st.session_state["ac_nome_usuario"] = nome
+
+
+def sincronizar_whatsapp_usuario():
+    """Sanitiza e replica o WhatsApp das Informações Gerais para a Área do Cliente."""
+    sanitizar_whatsapp_state("ig_whatsapp", "ac_whatsapp_usuario")
+
+
+def limpar_estado_widgets_relatorio():
+    """Evita valores antigos dos widgets ao criar ou abrir outro relatório."""
+    for chave in [
+        "ig_nome_usuario",
+        "ig_whatsapp",
+        "ac_nome_usuario",
+        "ac_whatsapp_usuario",
+        "ac_whatsapp_coordenador",
+        "ac_local",
+        "ac_data_termino",
+        "ac_nome_coordenador",
+    ]:
+        st.session_state.pop(chave, None)
+
 
 def validar_email(email: str) -> bool:
     if not email:
@@ -951,6 +1004,7 @@ with st.sidebar:
         st.session_state["draft_hash"] = None
         st.session_state["last_draft_save"] = None
         st.session_state.pop("rascunho_recuperado", None)
+        limpar_estado_widgets_relatorio()
         st.rerun()
 
     if st.session_state.get("rascunho_recuperado"):
@@ -1005,6 +1059,7 @@ with st.sidebar:
                             st.session_state["relatorio_model"] = modelo_from_dict(dados_carregados, h_report_id)
                             st.session_state["draft_hash"] = None
                             st.session_state.pop("rascunho_recuperado", None)
+                            limpar_estado_widgets_relatorio()
                             st.success(f"Relatório {h_report_id or ''} carregado com sucesso!")
                             st.rerun()
                         except Exception as e:
@@ -1143,11 +1198,29 @@ with tab1:
 
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
             st.markdown('<div class="ss-group-title">Usuário atendido <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
-            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.informacoes_gerais["nome_usuario"], label_visibility="collapsed", key="ig_nome_usuario")
+            modelo.informacoes_gerais["nome_usuario"] = st.text_input(
+                "Nome do Usuário",
+                value=modelo.informacoes_gerais["nome_usuario"],
+                label_visibility="collapsed",
+                key="ig_nome_usuario",
+                on_change=sincronizar_nome_usuario
+            )
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
-            raw_wpp = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
-            modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
+            st.markdown('<div class="ss-group-title">WhatsApp</div>', unsafe_allow_html=True)
+            st.markdown('<div class="ss-group-sub">Informe 11 números: DDD + celular. Ex.: 85999999999</div>', unsafe_allow_html=True)
+            raw_wpp = st.text_input(
+                "WhatsApp",
+                value=somente_digitos_whatsapp(modelo.informacoes_gerais["whatsapp"]),
+                key="ig_whatsapp",
+                max_chars=11,
+                placeholder="85999999999",
+                label_visibility="collapsed",
+                on_change=sincronizar_whatsapp_usuario
+            )
+            modelo.informacoes_gerais["whatsapp"] = somente_digitos_whatsapp(raw_wpp)
+            if raw_wpp and len(somente_digitos_whatsapp(raw_wpp)) < 11:
+                st.caption(f"{len(somente_digitos_whatsapp(raw_wpp))}/11 dígitos")
 
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
             st.markdown('<div class="ss-group-title">Responsável pelo atendimento <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
@@ -1204,29 +1277,62 @@ with tab3:
         modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
 
 with tab4:
+    # Mantém nome e WhatsApp do usuário alinhados com Informações Gerais
+    # quando ainda não houver estado próprio na Área do Cliente.
+    if "ac_nome_usuario" not in st.session_state:
+        modelo.area_cliente["nome_usuario"] = modelo.informacoes_gerais.get("nome_usuario", "")
+    if "ac_whatsapp_usuario" not in st.session_state:
+        modelo.area_cliente["whatsapp_usuario"] = somente_digitos_whatsapp(
+            modelo.informacoes_gerais.get("whatsapp", "")
+        )
+
     with st.container(border=True):
         st.markdown("### Área do Cliente")
-        st.caption("Dados de validação do usuário e do coordenador do setor.")
+        st.caption("O nome e o WhatsApp do usuário são preenchidos automaticamente a partir das Informações Gerais.")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             st.markdown("#### Usuário")
             modelo.area_cliente["local"] = st.text_input("Local (Ex: Jaguaribe-ce)", value=modelo.area_cliente["local"], key="ac_local")
-            modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"], key="ac_nome_usuario")
-            raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"], key="ac_whatsapp_usuario")
-            modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
+            modelo.area_cliente["nome_usuario"] = st.text_input(
+                "Nome do Usuário",
+                value=modelo.area_cliente["nome_usuario"] or modelo.informacoes_gerais.get("nome_usuario", ""),
+                key="ac_nome_usuario"
+            )
+            raw_wpp_u = st.text_input(
+                "WhatsApp do Usuário",
+                value=somente_digitos_whatsapp(
+                    modelo.area_cliente["whatsapp_usuario"] or modelo.informacoes_gerais.get("whatsapp", "")
+                ),
+                key="ac_whatsapp_usuario",
+                max_chars=11,
+                placeholder="85999999999",
+                help="Somente números. Informe DDD + celular, totalizando 11 dígitos.",
+                on_change=sanitizar_whatsapp_state,
+                args=("ac_whatsapp_usuario",)
+            )
+            modelo.area_cliente["whatsapp_usuario"] = somente_digitos_whatsapp(raw_wpp_u)
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
         with col_c2:
             st.markdown("#### Coordenador do Setor")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY", key="ac_data_termino")
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"], key="ac_nome_coordenador")
-            raw_wpp_c = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"], key="ac_whatsapp_coordenador")
-            modelo.area_cliente["whatsapp_coordenador"] = limpar_telefone(raw_wpp_c)
+            raw_wpp_c = st.text_input(
+                "WhatsApp do Coordenador do setor",
+                value=somente_digitos_whatsapp(modelo.area_cliente["whatsapp_coordenador"]),
+                key="ac_whatsapp_coordenador",
+                max_chars=11,
+                placeholder="85999999999",
+                help="Somente números. Informe DDD + celular, totalizando 11 dígitos.",
+                on_change=sanitizar_whatsapp_state,
+                args=("ac_whatsapp_coordenador",)
+            )
+            modelo.area_cliente["whatsapp_coordenador"] = somente_digitos_whatsapp(raw_wpp_c)
             capturar_assinatura("Assinatura Coordenador", "coordenador", modelo, "assinatura_coordenador")
 
 with tab5:
     with st.container(border=True):
-        st.markdown("### Evidências Fotográficas")
-        st.caption("Adicione imagens que comprovem ou contextualizem o atendimento realizado.")
+        st.markdown("### Evidências Anexadas")
+        st.caption("Anexe imagens relacionadas ao atendimento. No PDF, cada evidência será apresentada em uma página exclusiva.")
 
         uploaded_photos = st.file_uploader(
             "Enviar imagens de evidência",
@@ -1660,60 +1766,86 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     ]))
     story.append(KeepTogether(ass_table))
 
-    # Evidências em grade
+    # Evidências anexadas — sempre em páginas exclusivas
     if anexos:
-        story.append(section_header("Evidências Fotográficas"))
-
-        cards = []
         for idx, item in enumerate(anexos):
+            # Cada evidência começa obrigatoriamente em uma nova página.
+            PageBreak_evidencia = PageBreak()
+            story.append(PageBreak_evidencia)
+            story.append(section_header("Evidências Anexadas"))
+            story.append(Spacer(1, 8))
+
             try:
                 foto_val = item.get("foto")
                 foto_bytes = base64.b64decode(foto_val) if isinstance(foto_val, str) else foto_val
                 img_pil = Image.open(io.BytesIO(foto_bytes)).convert("RGB")
 
-                max_w, max_h = 238, 165
-                ratio = min(max_w / img_pil.width, max_h / img_pil.height, 1)
+                # Área máxima disponível da página Letter, preservando margens,
+                # título da seção, legenda e rodapé.
+                max_w = 520
+                max_h = 600
+
+                ratio = min(max_w / img_pil.width, max_h / img_pil.height)
                 img_w = img_pil.width * ratio
                 img_h = img_pil.height * ratio
 
-                img = RLImage(io.BytesIO(foto_bytes), width=img_w, height=img_h)
+                img = RLImage(
+                    io.BytesIO(foto_bytes),
+                    width=img_w,
+                    height=img_h
+                )
+
                 legenda = item.get("legenda") or "Sem legenda"
 
-                card = Table(
-                    [[img], [Paragraph(f"<b>Evidência {idx + 1}</b><br/>{esc(legenda)}", caption_style)]],
-                    colWidths=[252]
+                evidencia_title = Paragraph(
+                    f"<b>Evidência {idx + 1} de {len(anexos)}</b>",
+                    section_title_style
                 )
-                card.setStyle(TableStyle([
-                    ("BOX", (0, 0), (-1, -1), 0.6, border),
-                    ("BACKGROUND", (0, 0), (-1, -1), white),
+                story.append(evidencia_title)
+                story.append(Spacer(1, 5))
+
+                # Centraliza a imagem horizontalmente e verticalmente dentro
+                # de uma área ampla da página.
+                imagem_container = Table(
+                    [[img]],
+                    colWidths=[540],
+                    rowHeights=[610]
+                )
+                imagem_container.setStyle(TableStyle([
                     ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (0, 0), 7),
-                    ("BOTTOMPADDING", (0, 0), (0, 0), 6),
-                    ("TOPPADDING", (0, 1), (0, 1), 6),
-                    ("BOTTOMPADDING", (0, 1), (0, 1), 7),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
                 ]))
-                cards.append(card)
-            except Exception:
-                cards.append(
-                    Table([[Paragraph(f"Evidência {idx + 1}: imagem indisponível.", caption_style)]], colWidths=[252])
-                )
+                story.append(imagem_container)
+                story.append(Spacer(1, 6))
 
-        for i in range(0, len(cards), 2):
-            linha = cards[i:i+2]
-            if len(linha) == 1:
-                linha.append("")
-            grade = Table([linha], colWidths=[270, 270])
-            grade.setStyle(TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]))
-            story.append(KeepTogether(grade))
+                legenda_box = Table(
+                    [[Paragraph(
+                        f"<b>Evidência {idx + 1}:</b> {esc(legenda)}",
+                        caption_style
+                    )]],
+                    colWidths=[540]
+                )
+                legenda_box.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), bg),
+                    ("BOX", (0, 0), (-1, -1), 0.5, border),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]))
+                story.append(legenda_box)
+
+            except Exception:
+                story.append(
+                    Paragraph(
+                        f"Evidência {idx + 1}: não foi possível carregar a imagem.",
+                        normal_style
+                    )
+                )
 
     # Canvas customizado com "Página X de Y"
     class NumberedCanvas(pdfcanvas.Canvas):
@@ -1790,6 +1922,15 @@ def validar_relatorio(dados: dict):
         erros.append("Informe o **Responsável pelo Atendimento**.")
     if ig.get("email") and not validar_email(ig.get("email")):
         erros.append("O formato do **E-mail** informado é inválido.")
+
+    if ig.get("whatsapp") and not validar_whatsapp(ig.get("whatsapp")):
+        erros.append("O **WhatsApp** das Informações Gerais deve conter exatamente **11 números** (DDD + celular).")
+
+    ac = dados.get("area_cliente", {})
+    if ac.get("whatsapp_usuario") and not validar_whatsapp(ac.get("whatsapp_usuario")):
+        erros.append("O **WhatsApp do Usuário** deve conter exatamente **11 números** (DDD + celular).")
+    if ac.get("whatsapp_coordenador") and not validar_whatsapp(ac.get("whatsapp_coordenador")):
+        erros.append("O **WhatsApp do Coordenador** deve conter exatamente **11 números** (DDD + celular).")
 
     servicos_marcados = any(se.get(k) for k in ["implantacao", "treinamento", "demonstracao_sistema", "visita", "outros"])
     if not servicos_marcados:
