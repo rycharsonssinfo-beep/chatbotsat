@@ -469,7 +469,7 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM sistemas")
     if cursor.fetchone()[0] == 0:
         padroes = [
-            "Contabilidade", "Jestor", "Fluxus", "Folha de Pagamento", "Nota Fiscal Eletrônica",
+            "Contabilidade", "Gestor", "Fluxus", "Folha de Pagamento", "Nota Fiscal Eletrônica",
             "Portal da Transparência", "SAT Web", "SAT WEB SPU", "SIG - Almoxarifado",
             "SIG - Doações", "SIG - Licitação", "SIG - Merenda", "SIG - Patrimônio",
             "SIG - PPA", "SigWeb - Almoxarifado", "SigWeb - Geral", "SigWeb - Orçamento",
