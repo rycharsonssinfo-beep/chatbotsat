@@ -9,6 +9,7 @@ import html
 from pathlib import Path
 from datetime import datetime, date
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
@@ -968,6 +969,161 @@ def limpar_estado_widgets_relatorio():
         "ac_nome_coordenador",
     ]:
         st.session_state.pop(chave, None)
+
+
+def botao_compartilhar_pdf(pdf_bytes: bytes, nome_arquivo: str, titulo: str, mensagem: str):
+    """
+    Renderiza um botão que usa a Web Share API do navegador para compartilhar
+    o PDF como arquivo. Em celulares compatíveis, abre o menu nativo de
+    compartilhamento (WhatsApp, Gmail, Drive etc.).
+
+    O PDF permanece local ao navegador até o usuário escolher um aplicativo.
+    """
+    if not pdf_bytes:
+        return
+
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
+
+    # JSON garante escape correto de acentos, aspas e nomes de entidades.
+    js_pdf_b64 = json.dumps(pdf_b64)
+    js_nome = json.dumps(nome_arquivo)
+    js_titulo = json.dumps(titulo)
+    js_mensagem = json.dumps(mensagem)
+
+    componente = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            * {{
+                box-sizing: border-box;
+                font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }}
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+            }}
+            #shareBtn {{
+                width: 100%;
+                min-height: 41px;
+                border: 1px solid #0F766E;
+                border-radius: 9px;
+                background: #FFFFFF;
+                color: #0F766E;
+                font-size: 14px;
+                font-weight: 680;
+                cursor: pointer;
+                transition: background .15s ease, color .15s ease, border-color .15s ease;
+            }}
+            #shareBtn:hover:not(:disabled) {{
+                background: #F0FDFA;
+                border-color: #0D9488;
+            }}
+            #shareBtn:disabled {{
+                cursor: not-allowed;
+                color: #64748B;
+                border-color: #CBD5E1;
+                background: #F8FAFC;
+            }}
+            #shareStatus {{
+                display: none;
+                margin-top: 5px;
+                color: #64748B;
+                font-size: 11px;
+                line-height: 1.25;
+            }}
+            #shareStatus.error {{
+                display: block;
+                color: #B45309;
+            }}
+        </style>
+    </head>
+    <body>
+        <button id="shareBtn" type="button">Compartilhar PDF</button>
+        <div id="shareStatus"></div>
+
+        <script>
+            const pdfBase64 = {js_pdf_b64};
+            const fileName = {js_nome};
+            const shareTitle = {js_titulo};
+            const shareText = {js_mensagem};
+
+            const button = document.getElementById("shareBtn");
+            const status = document.getElementById("shareStatus");
+
+            function base64ToBlob(base64, mimeType) {{
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+
+                for (let i = 0; i < binary.length; i++) {{
+                    bytes[i] = binary.charCodeAt(i);
+                }}
+
+                return new Blob([bytes], {{ type: mimeType }});
+            }}
+
+            async function compartilhar() {{
+                status.className = "";
+                status.style.display = "none";
+                status.textContent = "";
+
+                try {{
+                    if (!window.isSecureContext || !navigator.share) {{
+                        throw new Error(
+                            "O compartilhamento nativo não está disponível neste navegador. Use “Baixar PDF oficial”."
+                        );
+                    }}
+
+                    const blob = base64ToBlob(pdfBase64, "application/pdf");
+                    const arquivo = new File([blob], fileName, {{
+                        type: "application/pdf",
+                        lastModified: Date.now()
+                    }});
+
+                    if (navigator.canShare && !navigator.canShare({{ files: [arquivo] }})) {{
+                        throw new Error(
+                            "Este dispositivo não permite compartilhar arquivos PDF pelo menu nativo. Use “Baixar PDF oficial”."
+                        );
+                    }}
+
+                    await navigator.share({{
+                        title: shareTitle,
+                        text: shareText,
+                        files: [arquivo]
+                    }});
+                }} catch (erro) {{
+                    // Cancelar a janela de compartilhamento não é um erro para o usuário.
+                    if (erro && erro.name === "AbortError") {{
+                        return;
+                    }}
+
+                    status.textContent = erro?.message ||
+                        "Não foi possível abrir o compartilhamento nativo.";
+                    status.className = "error";
+                    status.style.display = "block";
+                }}
+            }}
+
+            button.addEventListener("click", compartilhar);
+
+            // Já sinaliza indisponibilidade antes do clique quando a API não existe.
+            if (!window.isSecureContext || !navigator.share) {{
+                button.disabled = true;
+                button.textContent = "Compartilhamento indisponível";
+                status.textContent =
+                    "Neste navegador, use o botão “Baixar PDF oficial”. Em celulares compatíveis, o PDF pode ser compartilhado diretamente.";
+                status.className = "error";
+                status.style.display = "block";
+            }}
+        </script>
+    </body>
+    </html>
+    """
+
+    components.html(componente, height=72, scrolling=False)
 
 
 def validar_email(email: str) -> bool:
@@ -2555,23 +2711,75 @@ if st.button("Gerar relatório", type="primary", use_container_width=True):
                 )
                 st.caption(f"PDF local: `{pdf_path}` • Backup do banco: `{backup_path}`")
 
-                col_dl, col_wpp = st.columns(2)
+                nome_entidade = re.sub(
+                    r"[^A-Za-z0-9_-]+",
+                    "_",
+                    dados_val["informacoes_gerais"].get("entidade", "atendimento").strip()
+                ).strip("_") or "atendimento"
+
+                nome_pdf_compartilhar = (
+                    f"{modelo.report_id}_{nome_entidade}_{datetime.now().strftime('%d-%m-%Y')}.pdf"
+                )
+
+                msg_compartilhar = (
+                    f"Relatório de Atendimento Presencial {modelo.report_id} — "
+                    f"{dados_val['informacoes_gerais'].get('entidade', '')}."
+                )
+
+                col_dl, col_share, col_wpp = st.columns(3)
+
                 with col_dl:
-                    nome_entidade = re.sub(r"[^A-Za-z0-9_-]+", "_", dados_val["informacoes_gerais"].get("entidade", "atendimento").strip()).strip("_") or "atendimento"
                     st.download_button(
                         label="Baixar PDF oficial",
                         data=pdf_bytes,
-                        file_name=f"{modelo.report_id}_{nome_entidade}_{datetime.now().strftime('%d-%m-%Y')}.pdf",
+                        file_name=nome_pdf_compartilhar,
                         mime="application/pdf",
                         use_container_width=True
                     )
+
+                with col_share:
+                    botao_compartilhar_pdf(
+                        pdf_bytes=pdf_bytes,
+                        nome_arquivo=nome_pdf_compartilhar,
+                        titulo=f"Relatório {modelo.report_id}",
+                        mensagem=msg_compartilhar
+                    )
+
                 with col_wpp:
-                    wpp_num = re.sub(r'[^0-9]', '', dados_val["informacoes_gerais"].get('whatsapp', ''))
+                    wpp_num = re.sub(
+                        r'[^0-9]',
+                        '',
+                        dados_val["informacoes_gerais"].get('whatsapp', '')
+                    )
                     if wpp_num:
-                        msg = f"Olá, {dados_val['informacoes_gerais'].get('nome_usuario')}. Segue o resumo do atendimento presencial realizado no Grupo S&S para a entidade {dados_val['informacoes_gerais'].get('entidade')}. Relatório {modelo.report_id}."
+                        msg = (
+                            f"Olá, {dados_val['informacoes_gerais'].get('nome_usuario')}. "
+                            f"Segue o resumo do atendimento presencial realizado no Grupo S&S "
+                            f"para a entidade {dados_val['informacoes_gerais'].get('entidade')}. "
+                            f"Relatório {modelo.report_id}."
+                        )
                         import urllib.parse
                         link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
-                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#16a34a; color:white; border:none; border-radius:9px; min-height:41px; padding:0.62rem 1.2rem; font-weight:680; width:100%; cursor:pointer;">Enviar resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+                        st.markdown(
+                            f'<a href="{link_wpp}" target="_blank">'
+                            f'<button style="background-color:#16a34a; color:white; border:none; '
+                            f'border-radius:9px; min-height:41px; padding:0.62rem 1.2rem; '
+                            f'font-weight:680; width:100%; cursor:pointer;">Abrir WhatsApp</button>'
+                            f'</a>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.button(
+                            "Abrir WhatsApp",
+                            disabled=True,
+                            use_container_width=True,
+                            help="Informe um WhatsApp nas Informações Gerais."
+                        )
+
+                st.caption(
+                    "No celular, **Compartilhar PDF** abre o menu nativo do dispositivo e permite "
+                    "enviar o arquivo diretamente para WhatsApp, e-mail, Drive e outros aplicativos compatíveis."
+                )
 
                 st.markdown("### Pré-visualização")
                 base64_pdf = io.BytesIO(pdf_bytes)
