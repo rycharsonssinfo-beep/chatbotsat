@@ -5,6 +5,7 @@ import base64
 import sqlite3
 import os
 import hashlib
+import html
 from pathlib import Path
 from datetime import datetime, date
 import streamlit as st
@@ -15,6 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas as pdfcanvas
 
 # ==========================================
 # CONFIGURAÇÕES DE PERSISTÊNCIA
@@ -35,74 +37,371 @@ st.set_page_config(
 )
 
 st.markdown("""
-    <style>
-    .stApp {
-        background-color: #f8fafc;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+<style>
+/* ============================================================
+   PACOTE VISUAL 2 — identidade corporativa
+   ============================================================ */
+:root {
+    --ss-navy: #0F172A;
+    --ss-navy-2: #111C33;
+    --ss-blue: #2563EB;
+    --ss-blue-dark: #1D4ED8;
+    --ss-blue-soft: #EFF6FF;
+    --ss-bg: #F6F8FC;
+    --ss-card: #FFFFFF;
+    --ss-border: #E2E8F0;
+    --ss-border-strong: #CBD5E1;
+    --ss-text: #1E293B;
+    --ss-muted: #64748B;
+    --ss-success: #047857;
+    --ss-success-bg: #ECFDF5;
+    --ss-warning: #B45309;
+    --ss-warning-bg: #FFFBEB;
+    --ss-danger: #B91C1C;
+    --ss-danger-bg: #FEF2F2;
+}
+
+html, body, [class*="css"] {
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.stApp {
+    background:
+        radial-gradient(circle at top right, rgba(37,99,235,.055), transparent 25rem),
+        var(--ss-bg);
+    color: var(--ss-text);
+}
+
+[data-testid="stAppViewContainer"] > .main .block-container {
+    max-width: 1420px;
+    padding-top: 1.5rem;
+    padding-bottom: 4rem;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0B1324 0%, #101B31 100%);
+    border-right: 1px solid rgba(255,255,255,.06);
+}
+
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p {
+    color: #E2E8F0;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #FFFFFF;
+    letter-spacing: -.02em;
+}
+
+[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,.09);
+}
+
+[data-testid="stSidebar"] .stTextInput input {
+    background: rgba(255,255,255,.07);
+    border-color: rgba(255,255,255,.13);
+    color: #FFFFFF;
+}
+
+[data-testid="stSidebar"] .stTextInput input::placeholder {
+    color: #94A3B8;
+}
+
+[data-testid="stSidebar"] .stExpander {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+}
+
+/* Cabeçalho */
+.ss-hero {
+    background: linear-gradient(135deg, #FFFFFF 0%, #FBFDFF 70%, #F3F7FF 100%);
+    border: 1px solid var(--ss-border);
+    border-radius: 20px;
+    padding: 22px 26px;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, .055);
+    margin-bottom: 1rem;
+}
+
+.ss-hero-title {
+    font-size: clamp(1.65rem, 2vw, 2.15rem);
+    font-weight: 750;
+    color: var(--ss-navy);
+    letter-spacing: -.035em;
+    line-height: 1.1;
+    margin: 0;
+}
+
+.ss-hero-subtitle {
+    color: var(--ss-muted);
+    font-size: .92rem;
+    margin-top: .45rem;
+}
+
+.ss-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .9rem;
+}
+
+.ss-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    border: 1px solid var(--ss-border);
+    border-radius: 999px;
+    padding: .34rem .7rem;
+    color: #475569;
+    background: #FFFFFF;
+    font-size: .78rem;
+    font-weight: 650;
+}
+
+.ss-pill-blue {
+    color: #1D4ED8;
+    background: #EFF6FF;
+    border-color: #BFDBFE;
+}
+
+.ss-pill-green {
+    color: #047857;
+    background: #ECFDF5;
+    border-color: #A7F3D0;
+}
+
+/* Progress */
+.ss-progress-card {
+    background: #FFFFFF;
+    border: 1px solid var(--ss-border);
+    border-radius: 14px;
+    padding: 13px 16px;
+    margin: .65rem 0 1rem 0;
+}
+
+.ss-progress-head {
+    display:flex;
+    justify-content:space-between;
+    gap:1rem;
+    align-items:center;
+    font-size:.82rem;
+    font-weight:650;
+    color:#475569;
+    margin-bottom:.55rem;
+}
+
+.ss-progress-track {
+    width:100%;
+    height:7px;
+    background:#E8EEF7;
+    border-radius:999px;
+    overflow:hidden;
+}
+
+.ss-progress-fill {
+    height:100%;
+    background: linear-gradient(90deg, #2563EB, #3B82F6);
+    border-radius:999px;
+}
+
+/* Containers/cartões */
+div[data-testid="stVerticalBlock"] > div[style*="border"] {
+    background: rgba(255,255,255,.98);
+    border-radius: 16px !important;
+    padding: 22px !important;
+    border: 1px solid var(--ss-border) !important;
+    box-shadow: 0 6px 24px rgba(15,23,42,.035);
+}
+
+h1, h2, h3 {
+    letter-spacing: -.025em;
+}
+
+[data-testid="stMarkdownContainer"] h3 {
+    color: var(--ss-navy);
+}
+
+.ss-section-kicker {
+    color: var(--ss-blue);
+    font-size: .74rem;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: .2rem;
+}
+
+.ss-section-help {
+    color: var(--ss-muted);
+    font-size: .84rem;
+    margin-top: -.25rem;
+    margin-bottom: .75rem;
+}
+
+/* Campos */
+.stTextInput input,
+.stDateInput input,
+.stTextArea textarea,
+div[data-baseweb="select"] > div {
+    border-radius: 10px !important;
+    border-color: var(--ss-border-strong) !important;
+    background: #FFFFFF !important;
+}
+
+.stTextInput input:focus,
+.stTextArea textarea:focus,
+.stDateInput input:focus {
+    border-color: #60A5FA !important;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.10) !important;
+}
+
+.stTextArea textarea {
+    min-height: 105px;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    background: #E9EEF6;
+    border-radius: 13px;
+    padding: 4px;
+    margin-bottom: .85rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 44px;
+    border-radius: 10px;
+    border: 0 !important;
+    background: transparent;
+    color: #64748B;
+    font-size: .88rem;
+    font-weight: 650;
+    padding: 0 16px;
+}
+
+.stTabs [aria-selected="true"] {
+    background: #FFFFFF !important;
+    color: var(--ss-navy) !important;
+    box-shadow: 0 2px 8px rgba(15,23,42,.08);
+}
+
+/* Botões */
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 10px !important;
+    min-height: 42px;
+    font-weight: 650 !important;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(15,23,42,.08);
+}
+
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+    border: 0 !important;
+    box-shadow: 0 8px 20px rgba(37,99,235,.20);
+}
+
+/* Histórico */
+.history-card {
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.10);
+    padding: 11px 12px;
+    border-radius: 11px;
+    margin: 8px 0 6px 0;
+    font-size: .80rem;
+    line-height: 1.45;
+    color: #CBD5E1;
+}
+
+.history-card b {
+    color: #FFFFFF;
+    font-size: .86rem;
+}
+
+/* Assinaturas */
+.signature-badge {
+    background: var(--ss-success-bg);
+    color: var(--ss-success);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 700;
+    display: inline-block;
+    margin: 6px 0 10px 0;
+    border: 1px solid #A7F3D0;
+}
+
+/* Evidências */
+.ss-evidence-title {
+    color: var(--ss-navy);
+    font-size: .9rem;
+    font-weight: 700;
+    margin-bottom: .15rem;
+}
+
+.ss-evidence-caption {
+    color: var(--ss-muted);
+    font-size: .78rem;
+}
+
+/* Finalização */
+.ss-finish-card {
+    background: linear-gradient(135deg, #F8FBFF, #FFFFFF);
+    border: 1px solid #DCE6F5;
+    border-radius: 18px;
+    padding: 20px 22px;
+    margin: 1.25rem 0 .85rem 0;
+}
+
+.ss-finish-title {
+    color: var(--ss-navy);
+    font-size: 1.08rem;
+    font-weight: 750;
+    margin-bottom: .25rem;
+}
+
+.ss-finish-sub {
+    color: var(--ss-muted);
+    font-size: .84rem;
+}
+
+/* Status/alerts */
+[data-testid="stAlert"] {
+    border-radius: 12px;
+}
+
+/* Preview PDF */
+iframe {
+    border: 1px solid var(--ss-border) !important;
+    border-radius: 14px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 28px rgba(15,23,42,.06);
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+    [data-testid="stAppViewContainer"] > .main .block-container {
+        padding-left: .85rem;
+        padding-right: .85rem;
     }
-    [data-testid="stSidebar"] {
-        background-color: #0d1527;
-        color: #ffffff;
-        padding-top: 1rem;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background-color: #1b5ef7;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background-color: #1446c2;
-        color: white;
-    }
-    .history-card {
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 10px;
-        border-radius: 8px;
-        margin-bottom: 8px;
-        font-size: 0.85rem;
-        color: #cbd5e1;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #ffffff;
-        border-radius: 14px;
-        padding: 24px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        border: 1px solid #e2e8f0 !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent;
+    .ss-hero {
+        padding: 18px;
+        border-radius: 16px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        background-color: #ffffff;
-        border-radius: 10px 10px 0 0;
-        color: #475569;
-        font-weight: 600;
-        border: 1px solid #e2e8f0;
-        padding: 0 20px;
+        padding: 0 10px;
+        font-size: .80rem;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #1b5ef7 !important;
-        color: white !important;
-        border-color: #1b5ef7 !important;
-    }
-    .signature-badge {
-        background-color: #ecfdf5;
-        color: #065f46;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        display: inline-block;
-        margin-top: 8px;
-        border: 1px solid #a7f3d0;
-    }
-    </style>
+}
+</style>
 """, unsafe_allow_html=True)
 
 
@@ -412,59 +711,93 @@ def otimizar_foto(uploaded_file, max_dim=1600, qualidade=82) -> bytes:
 # 5. CAPTURA DE ASSINATURA
 # ==========================================
 def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: str):
-    st.markdown(f"**{titulo}**")
-    metodo = st.radio(f"Método ({titulo})", ["Desenhar na Tela", "Enviar Imagem"], horizontal=True, key=f"metodo_{key_prefix}")
-    
-    if metodo == "Desenhar na Tela":
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",
-            stroke_width=2,
-            stroke_color="#000000",
-            background_color="#FFFFFF",
-            height=130,
-            width=350,
-            drawing_mode="freedraw",
-            update_streamlit=True,
-            return_image_data=True,
-            key=f"canvas_{key_prefix}"
-        )
-        if st.button(f"Salvar {titulo}", key=f"btn_salvar_{key_prefix}"):
-            if canvas_result is not None and canvas_result.image_data is not None:
-                try:
-                    img_array = canvas_result.image_data
-                    if img_array.any():
-                        pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
-                        background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                        background.paste(pil_img, mask=pil_img.split()[3])
-                        buf = io.BytesIO()
-                        background.save(buf, format="PNG")
-                        modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-                        st.success(f"{titulo} salva com sucesso!")
-                        st.rerun()
-                    else:
-                        st.warning("O painel de desenho está vazio.")
-                except Exception as e:
-                    st.error(f"Erro ao capturar desenho: {e}")
-    else:
-        uploaded_file = st.file_uploader(f"Enviar arquivo ({titulo})", type=["png", "jpg", "jpeg"], key=f"upload_{key_prefix}")
-        if uploaded_file is not None:
-            modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
-            st.success(f"{titulo} carregada com sucesso!")
+    with st.container(border=True):
+        st.markdown(f"#### {titulo}")
+        st.caption("Assine diretamente no quadro ou envie uma imagem da assinatura.")
 
-    sig_val = modelo_ref.area_cliente.get(campo_modelo)
-    if sig_val:
-        st.markdown('<div class="signature-badge">✅ Assinatura Registrada</div>', unsafe_allow_html=True)
-        try:
-            if isinstance(sig_val, str):
-                sig_bytes = base64.b64decode(sig_val)
-            else:
-                sig_bytes = sig_val
-            st.image(sig_bytes, width=180)
-            if st.button(f"🗑️ Limpar {titulo}", key=f"btn_limpar_{key_prefix}"):
+        metodo = st.radio(
+            "Forma de assinatura",
+            ["Desenhar na Tela", "Enviar Imagem"],
+            horizontal=True,
+            key=f"metodo_{key_prefix}",
+            label_visibility="collapsed"
+        )
+
+        if metodo == "Desenhar na Tela":
+            canvas_result = st_canvas(
+                fill_color="rgba(255,255,255,0)",
+                stroke_width=2,
+                stroke_color="#0F172A",
+                background_color="#FFFFFF",
+                height=170,
+                width=420,
+                drawing_mode="freedraw",
+                update_streamlit=True,
+                return_image_data=True,
+                key=f"canvas_{key_prefix}"
+            )
+
+            c_salvar, c_limpar = st.columns(2)
+            with c_salvar:
+                salvar = st.button(
+                    "Salvar assinatura",
+                    key=f"btn_salvar_{key_prefix}",
+                    use_container_width=True,
+                    type="primary"
+                )
+            with c_limpar:
+                limpar = st.button(
+                    "Limpar assinatura",
+                    key=f"btn_limpar_canvas_{key_prefix}",
+                    use_container_width=True
+                )
+
+            if limpar:
                 modelo_ref.area_cliente[campo_modelo] = None
                 st.rerun()
-        except Exception:
-            pass
+
+            if salvar:
+                if canvas_result is not None and canvas_result.image_data is not None:
+                    try:
+                        img_array = canvas_result.image_data
+                        if img_array.any():
+                            pil_img = Image.fromarray(img_array.astype("uint8"), mode="RGBA")
+                            background = Image.new("RGB", pil_img.size, (255, 255, 255))
+                            background.paste(pil_img, mask=pil_img.split()[3])
+                            buf = io.BytesIO()
+                            background.save(buf, format="PNG", optimize=True)
+                            modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
+                            st.success("Assinatura registrada.")
+                            st.rerun()
+                        else:
+                            st.warning("O quadro de assinatura está vazio.")
+                    except Exception as e:
+                        st.error(f"Erro ao capturar assinatura: {e}")
+        else:
+            uploaded_file = st.file_uploader(
+                "Enviar imagem da assinatura",
+                type=["png", "jpg", "jpeg"],
+                key=f"upload_{key_prefix}"
+            )
+            if uploaded_file is not None:
+                modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
+                st.success("Assinatura carregada.")
+
+        sig_val = modelo_ref.area_cliente.get(campo_modelo)
+        if sig_val:
+            st.markdown('<div class="signature-badge">✓ Assinatura registrada</div>', unsafe_allow_html=True)
+            try:
+                sig_bytes = base64.b64decode(sig_val) if isinstance(sig_val, str) else sig_val
+                st.image(sig_bytes, width=220)
+                if st.button(
+                    "Remover assinatura",
+                    key=f"btn_remover_{key_prefix}",
+                    use_container_width=False
+                ):
+                    modelo_ref.area_cliente[campo_modelo] = None
+                    st.rerun()
+            except Exception as e:
+                st.warning(f"A assinatura foi registrada, mas não pôde ser pré-visualizada: {e}")
 
 
 # ==========================================
@@ -527,9 +860,10 @@ if "relatorio_model" not in st.session_state:
 modelo = st.session_state["relatorio_model"]
 
 with st.sidebar:
-    st.header("⚙ Painel de Controle")
+    st.markdown("## Painel de controle")
+    st.caption("Relatórios, histórico e configurações.")
 
-    if st.button("🔄 Novo Relatório (Limpar)", use_container_width=True):
+    if st.button("Novo relatório", use_container_width=True):
         excluir_rascunho_db()
         st.session_state["relatorio_model"] = RelatorioModel()
         st.session_state["draft_hash"] = None
@@ -541,18 +875,18 @@ with st.sidebar:
         st.info(f"Rascunho recuperado em {st.session_state['rascunho_recuperado']}")
 
     st.markdown("---")
-    st.subheader("➕ Novo Sistema")
-    novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex: Novo Sistema...")
-    if st.button("Cadastrar", use_container_width=True):
-        if adicionar_sistema_db(novo_sis_input):
-            st.success("Sistema adicionado!")
-            st.rerun()
-        else:
-            st.warning("Já existe ou nome vazio.")
+    with st.expander("Cadastrar novo sistema"):
+        novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex.: Novo Sistema...")
+        if st.button("Adicionar sistema", use_container_width=True):
+            if adicionar_sistema_db(novo_sis_input):
+                st.success("Sistema adicionado.")
+                st.rerun()
+            else:
+                st.warning("O sistema já existe ou o nome está vazio.")
 
     st.markdown("---")
-    st.subheader("📂 Histórico de Relatórios")
-    termo_busca = st.text_input("🔍 Filtrar entidade/usuário", placeholder="Digite para buscar...")
+    st.subheader("Histórico")
+    termo_busca = st.text_input("Pesquisar relatórios", placeholder="Entidade, usuário, sistema ou ID...")
 
     try:
         conn_h = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -602,33 +936,109 @@ with st.sidebar:
 
 
 
-# Cabeçalho Principal com a Logo Oficial
-col_logo, col_title = st.columns([1, 5])
+# Cabeçalho principal e progresso visual
+def calcular_estado_visual(modelo_ref):
+    ig = modelo_ref.informacoes_gerais
+    se = modelo_ref.servico_executado
+    ra = modelo_ref.resultado_atendimento
+    ac = modelo_ref.area_cliente
+
+    info_ok = all([
+        bool(ig.get("entidade", "").strip()),
+        bool(ig.get("nome_usuario", "").strip()),
+        bool(ig.get("sistema", "").strip()),
+        bool(ig.get("responsavel_atendimento", "").strip())
+    ])
+
+    serv_ok = any(se.get(k) for k in ["implantacao", "treinamento", "demonstracao_sistema", "visita", "outros"])
+    if se.get("visita") and not se.get("tipo_visita"):
+        serv_ok = False
+
+    result_ok = any(ra.get(k) for k in [
+        "perfeito_funcionamento", "pendencias_posterior", "treinamento_sucesso",
+        "pendencias_operador", "cartoes", "outros"
+    ])
+
+    cliente_ok = bool(ac.get("nome_usuario", "").strip()) and bool(ac.get("assinatura_usuario")) and bool(ac.get("assinatura_coordenador"))
+    evid_ok = bool(modelo_ref.anexos)
+
+    estados = [info_ok, serv_ok, result_ok, cliente_ok, evid_ok]
+    concluidas = sum(1 for item in estados if item)
+    percentual = int((concluidas / len(estados)) * 100)
+
+    return {
+        "info": info_ok,
+        "serv": serv_ok,
+        "result": result_ok,
+        "cliente": cliente_ok,
+        "evid": evid_ok,
+        "concluidas": concluidas,
+        "percentual": percentual
+    }
+
+
+estado_visual = calcular_estado_visual(modelo)
+status_relatorio = "Finalizado" if st.session_state.get("ultimo_report_id") == modelo.report_id and modelo.report_id else "Rascunho"
+status_class = "ss-pill-green" if status_relatorio == "Finalizado" else "ss-pill-blue"
+id_exibicao = modelo.report_id or "Será criado automaticamente"
+salvamento_exibicao = st.session_state.get("last_draft_save") or "Aguardando alterações"
+
+col_logo, col_hero = st.columns([1.35, 4.65], vertical_alignment="center")
 with col_logo:
     if LOGO_BYTES:
         st.image(LOGO_BYTES, width=260)
 
-with col_title:
-    st.title("Relatório de Atendimento Presencial")
-    if modelo.report_id:
-        st.caption(f"Identificação: **{modelo.report_id}**")
-    else:
-        st.caption("Novo atendimento — o identificador será criado automaticamente ao salvar o primeiro rascunho.")
+with col_hero:
+    st.markdown(
+        f"""
+        <div class="ss-hero">
+            <div class="ss-section-kicker">Atendimento técnico em campo</div>
+            <div class="ss-hero-title">Relatório de Atendimento Presencial</div>
+            <div class="ss-hero-subtitle">
+                Registro operacional de serviços, resultados, assinaturas e evidências do atendimento.
+            </div>
+            <div class="ss-meta-row">
+                <span class="ss-pill {status_class}">{status_relatorio}</span>
+                <span class="ss-pill">ID: {html.escape(id_exibicao)}</span>
+                <span class="ss-pill">Autosave: {html.escape(str(salvamento_exibicao))}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
+st.markdown(
+    f"""
+    <div class="ss-progress-card">
+        <div class="ss-progress-head">
+            <span>Progresso do preenchimento</span>
+            <span>{estado_visual['concluidas']} de 5 etapas · {estado_visual['percentual']}%</span>
+        </div>
+        <div class="ss-progress-track">
+            <div class="ss-progress-fill" style="width:{estado_visual['percentual']}%"></div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+marca = lambda ok: " ✓" if ok else ""
+qtd_evid = len(modelo.anexos)
+rotulo_evid = f"Evidências {qtd_evid}" if qtd_evid else "Evidências"
 
 # Abas do formulário
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📋 Informações Gerais", 
-    "⚙ Serviços", 
-    "📊 Resultados", 
-    "✍️ Área do Cliente",
-    "📷 Evidências"
+    f"Informações Gerais{marca(estado_visual['info'])}",
+    f"Serviços{marca(estado_visual['serv'])}",
+    f"Resultados{marca(estado_visual['result'])}",
+    f"Área do Cliente{marca(estado_visual['cliente'])}",
+    rotulo_evid
 ])
 
 with tab1:
     with st.container(border=True):
-        st.subheader("📌 Informações Gerais")
+        st.markdown("### Informações Gerais")
+        st.caption("Dados da entidade, usuário e contexto do atendimento.")
         col1, col2 = st.columns(2)
         with col1:
             modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
@@ -662,7 +1072,8 @@ with tab1:
 
 with tab2:
     with st.container(border=True):
-        st.subheader("⚙ Registro do Serviço Executado")
+        st.markdown("### Registro do Serviço Executado")
+        st.caption("Selecione os serviços realizados e registre observações relevantes.")
         c1, c2, c3 = st.columns(3)
         with c1:
             modelo.servico_executado["implantacao"] = st.checkbox("Implantação", value=modelo.servico_executado["implantacao"])
@@ -687,7 +1098,8 @@ with tab2:
 
 with tab3:
     with st.container(border=True):
-        st.subheader("📊 Resultado do Atendimento")
+        st.markdown("### Resultado do Atendimento")
+        st.caption("Registre como o atendimento foi concluído e eventuais pendências.")
         modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
         modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
         modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
@@ -699,17 +1111,18 @@ with tab3:
 
 with tab4:
     with st.container(border=True):
-        st.subheader("✍️ Área do Cliente")
+        st.markdown("### Área do Cliente")
+        st.caption("Dados de validação do usuário e do coordenador do setor.")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
-            st.markdown("### 👤 Usuário")
+            st.markdown("#### Usuário")
             modelo.area_cliente["local"] = st.text_input("Local (Ex: Jaguaribe-ce)", value=modelo.area_cliente["local"])
             modelo.area_cliente["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.area_cliente["nome_usuario"])
             raw_wpp_u = st.text_input("WhatsApp do Usuário", value=modelo.area_cliente["whatsapp_usuario"])
             modelo.area_cliente["whatsapp_usuario"] = limpar_telefone(raw_wpp_u)
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
         with col_c2:
-            st.markdown("### 👔 Coordenador do Setor")
+            st.markdown("#### Coordenador do Setor")
             modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY")
             modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"])
             raw_wpp_c = st.text_input("WhatsApp do Coordenador do setor", value=modelo.area_cliente["whatsapp_coordenador"])
@@ -718,12 +1131,14 @@ with tab4:
 
 with tab5:
     with st.container(border=True):
-        st.subheader("📷 Evidências Fotográficas do Atendimento")
+        st.markdown("### Evidências Fotográficas")
+        st.caption("Adicione imagens que comprovem ou contextualizem o atendimento realizado.")
+
         uploaded_photos = st.file_uploader(
             "Enviar imagens de evidência",
             type=["png", "jpg", "jpeg"],
             accept_multiple_files=True,
-            help="As imagens serão otimizadas automaticamente para reduzir o tamanho do relatório."
+            help="As imagens são otimizadas automaticamente para reduzir o tamanho do relatório."
         )
 
         if uploaded_photos:
@@ -732,36 +1147,44 @@ with tab5:
             else:
                 novos_anexos = []
                 for idx, p in enumerate(uploaded_photos):
-                    st.markdown(f"**Evidência {idx + 1}:** `{p.name}`")
-                    c_img, c_leg = st.columns([1, 2])
                     try:
                         foto_otimizada = otimizar_foto(p)
-                        with c_img:
-                            st.image(foto_otimizada, width=180)
-                            tamanho_kb = len(foto_otimizada) / 1024
-                            st.caption(f"Imagem otimizada: {tamanho_kb:.0f} KB")
-                        with c_leg:
-                            legenda = st.text_input(
-                                f"Legenda para a evidência {idx + 1}",
-                                key=f"legenda_foto_{idx}",
-                                value=(modelo.anexos[idx].get("legenda", "") if idx < len(modelo.anexos) else "")
-                            )
+                        legenda_atual = modelo.anexos[idx].get("legenda", "") if idx < len(modelo.anexos) else ""
+
+                        if idx % 2 == 0:
+                            grid_cols = st.columns(2, gap="medium")
+
+                        with grid_cols[idx % 2]:
+                            with st.container(border=True):
+                                st.markdown(f'<div class="ss-evidence-title">Evidência {idx + 1}</div>', unsafe_allow_html=True)
+                                st.caption(p.name)
+                                st.image(foto_otimizada, width=300)
+                                tamanho_kb = len(foto_otimizada) / 1024
+                                st.markdown(
+                                    f'<div class="ss-evidence-caption">Imagem otimizada · {tamanho_kb:.0f} KB</div>',
+                                    unsafe_allow_html=True
+                                )
+                                legenda = st.text_input(
+                                    "Legenda",
+                                    key=f"legenda_foto_{idx}",
+                                    value=legenda_atual,
+                                    placeholder="Descreva o que a imagem registra..."
+                                )
                         novos_anexos.append({"foto": foto_otimizada, "legenda": legenda})
                     except Exception as e:
                         st.error(f"Não foi possível processar a imagem {p.name}: {e}")
-                    st.markdown("---")
                 modelo.anexos = novos_anexos
 
-        if modelo.anexos and not uploaded_photos:
-            st.markdown(f"**{len(modelo.anexos)} evidência(s) já registrada(s) neste relatório.**")
+        elif modelo.anexos:
+            st.markdown(f"**{len(modelo.anexos)} evidência(s) registrada(s)**")
             for idx, item in enumerate(modelo.anexos):
-                c_img, c_leg = st.columns([1, 2])
-                with c_img:
-                    st.image(item.get("foto"), width=180)
-                with c_leg:
-                    st.write(f"**Evidência {idx + 1}**")
-                    st.caption(item.get("legenda") or "Sem legenda")
-
+                if idx % 2 == 0:
+                    saved_cols = st.columns(2, gap="medium")
+                with saved_cols[idx % 2]:
+                    with st.container(border=True):
+                        st.markdown(f'<div class="ss-evidence-title">Evidência {idx + 1}</div>', unsafe_allow_html=True)
+                        st.image(item.get("foto"), width=300)
+                        st.caption(item.get("legenda") or "Sem legenda")
 
 
 # ==========================================
@@ -769,166 +1192,433 @@ with tab5:
 # ==========================================
 def gerar_pdf_relatorio(dados: dict) -> bytes:
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36, title="Relatório de Atendimento Presencial", author="Grupo S&S")
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=34,
+        leftMargin=34,
+        topMargin=28,
+        bottomMargin=44,
+        title="Relatório de Atendimento Presencial",
+        author="Grupo S&S"
+    )
+
     story = []
     meta = dados.get("_meta", {})
     report_id = meta.get("report_id") or "RAT-NÃO-IDENTIFICADO"
     agora_str = datetime.now().strftime("%d/%m/%Y às %H:%M")
-    
-    styles = getSampleStyleSheet()
-    primary_color = colors.HexColor('#0d1527')
-    border_color = colors.HexColor('#cbd5e1')
-    bg_light = colors.HexColor('#f8fafc')
-    text_dark = colors.HexColor('#1e293b')
-    text_muted = colors.HexColor('#64748b')
-    
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=14, textColor=primary_color, fontName='Helvetica-Bold', spaceAfter=2)
-    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=10, textColor=colors.white, fontName='Helvetica-Bold', backColor=primary_color, spaceBefore=10, spaceAfter=6, leftIndent=6, rightIndent=6, topPadding=5, bottomPadding=5)
-    normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=text_dark, fontName='Helvetica')
-    footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
+    ig = dados.get("informacoes_gerais", {})
+    se = dados.get("servico_executado", {})
+    ra = dados.get("resultado_atendimento", {})
+    ac = dados.get("area_cliente", {})
+    anexos = dados.get("anexos", [])
 
+    # Paleta institucional
+    navy = colors.HexColor("#0F172A")
+    blue = colors.HexColor("#2563EB")
+    blue_soft = colors.HexColor("#EFF6FF")
+    border = colors.HexColor("#E2E8F0")
+    border_strong = colors.HexColor("#CBD5E1")
+    bg = colors.HexColor("#F8FAFC")
+    text = colors.HexColor("#1E293B")
+    muted = colors.HexColor("#64748B")
+    white = colors.white
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "PDFTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=16.5,
+        leading=19,
+        textColor=navy,
+        spaceAfter=2
+    )
+    subtitle_style = ParagraphStyle(
+        "PDFSubtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.4,
+        leading=11,
+        textColor=muted
+    )
+    section_title_style = ParagraphStyle(
+        "PDFSection",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=10.5,
+        leading=13,
+        textColor=navy,
+        spaceBefore=10,
+        spaceAfter=5
+    )
+    normal_style = ParagraphStyle(
+        "PDFNormal",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11.5,
+        textColor=text
+    )
+    label_style = ParagraphStyle(
+        "PDFLabel",
+        parent=normal_style,
+        fontName="Helvetica-Bold",
+        fontSize=7.2,
+        leading=9,
+        textColor=muted,
+        spaceAfter=2
+    )
+    value_style = ParagraphStyle(
+        "PDFValue",
+        parent=normal_style,
+        fontName="Helvetica",
+        fontSize=8.7,
+        leading=11,
+        textColor=text
+    )
+    caption_style = ParagraphStyle(
+        "PDFCaption",
+        parent=normal_style,
+        fontSize=7.5,
+        leading=9.5,
+        textColor=muted,
+        alignment=1
+    )
+    signature_name_style = ParagraphStyle(
+        "PDFSignatureName",
+        parent=normal_style,
+        fontName="Helvetica-Bold",
+        fontSize=8.2,
+        leading=10,
+        alignment=1,
+        textColor=navy
+    )
+    signature_role_style = ParagraphStyle(
+        "PDFSignatureRole",
+        parent=normal_style,
+        fontSize=7.3,
+        leading=9,
+        alignment=1,
+        textColor=muted
+    )
+
+    def esc(valor, vazio="—"):
+        if valor is None or valor == "":
+            valor = vazio
+        return html.escape(str(valor)).replace("\n", "<br/>")
+
+    def section_header(titulo):
+        linha = Table(
+            [[Paragraph(esc(titulo), section_title_style), ""]],
+            colWidths=[220, 320]
+        )
+        linha.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.9, border_strong),
+            ("LINEBELOW", (0, 0), (0, 0), 2.2, blue),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        return linha
+
+    def campo(label, valor):
+        return [
+            Paragraph(esc(label).upper(), label_style),
+            Paragraph(esc(valor), value_style)
+        ]
+
+    def tabela_campos(linhas):
+        tabela = Table(linhas, colWidths=[270, 270])
+        tabela.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), white),
+            ("BOX", (0, 0), (-1, -1), 0.6, border),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, border),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        return tabela
+
+    def box_texto(label, valor):
+        conteudo = [
+            Paragraph(esc(label).upper(), label_style),
+            Spacer(1, 2),
+            Paragraph(esc(valor, "Nenhuma informação registrada."), value_style)
+        ]
+        t = Table([[conteudo]], colWidths=[540])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), bg),
+            ("BOX", (0, 0), (-1, -1), 0.6, border),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        return t
+
+    def checklist(itens):
+        rows = []
+        for marcado, texto_item in itens:
+            mark = Paragraph("<b>X</b>" if marcado else "", normal_style)
+            box = Table([[mark]], colWidths=[14], rowHeights=[14])
+            box.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.8, blue if marcado else border_strong),
+                ("BACKGROUND", (0, 0), (-1, -1), blue_soft if marcado else white),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            rows.append([box, Paragraph(esc(texto_item), value_style)])
+
+        t = Table(rows, colWidths=[24, 516])
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        return t
+
+    # Cabeçalho institucional
     if LOGO_BYTES:
-        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=180, height=47, kind='proportional')
+        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=176, height=46, kind="proportional")
     else:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
-    titulo_cabecalho = Paragraph(f"<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b><br/><font size=8>Documento: {report_id}</font>", title_style)
-    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[200, 340])
-    tabela_cabecalho.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-    ]))
-    story.append(tabela_cabecalho)
-    
-    # Informações Gerais
-    ig = dados.get("informacoes_gerais", {})
-    story.append(Paragraph("Informações Gerais", section_style))
-    info_data = [
-        [Paragraph(f"<b>Entidade:</b> {ig.get('entidade', '')}", normal_style), Paragraph(f"<b>Sistema:</b> {ig.get('sistema', '')}", normal_style)],
-        [Paragraph(f"<b>Setor:</b> {ig.get('setor', '')}", normal_style), Paragraph(f"<b>Data da Visita:</b> {ig.get('data_visita', '')}", normal_style)],
-        [Paragraph(f"<b>Nome do Usuário:</b> {ig.get('nome_usuario', '')}", normal_style), Paragraph(f"<b>WhatsApp:</b> {ig.get('whatsapp', '')}", normal_style)],
-        [Paragraph(f"<b>E-mail:</b> {ig.get('email', '')}", normal_style), Paragraph(f"<b>Resp. Atendimento:</b> {ig.get('responsavel_atendimento', '')}", normal_style)],
-        [Paragraph(f"<b>Período:</b> {ig.get('periodo_atendimento', '')}", normal_style), Paragraph(f"<b>Turno:</b> [ {'X' if ig.get('turno')=='M' else ' '} ] M &nbsp;&nbsp;[ {'X' if ig.get('turno')=='T' else ' '} ] T &nbsp;&nbsp;[ {'X' if ig.get('turno')=='N' else ' '} ] N", normal_style)],
+    header_text = [
+        Paragraph("RELATÓRIO DE ATENDIMENTO PRESENCIAL", title_style),
+        Paragraph("Registro técnico de atendimento em campo", subtitle_style),
+        Spacer(1, 4),
+        Paragraph(f"<b>{esc(report_id)}</b>", subtitle_style)
     ]
-    t_info = Table(info_data, colWidths=[270, 270])
-    t_info.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_info)
-    
-    story.append(Spacer(1, 4))
-    desc_data = [[Paragraph(f"<b>Descrição:</b><br/>{ig.get('descricao', 'Nenhuma descrição informada.')}", normal_style)]]
-    t_desc = Table(desc_data, colWidths=[540])
-    t_desc.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_desc)
-    
-    # Serviço Executado
-    se = dados.get("servico_executado", {})
-    story.append(Paragraph("Registro do Serviço Executado", section_style))
-    ci, ct, cd, cv, co = ("[X]" if se.get(k) else "[  ]" for k in ['implantacao', 'treinamento', 'demonstracao_sistema', 'visita', 'outros'])
-    serv_html = f"<b>{ci}</b> Implantação &nbsp;&nbsp;&nbsp;&nbsp; <b>{ct}</b> Treinamento &nbsp;&nbsp;&nbsp;&nbsp; <b>{cd}</b> Demonstração de Sistema<br/><b>{cv}</b> Visita &nbsp;&nbsp;&nbsp;&nbsp; <b>{co}</b> Outros (inserir nas observações abaixo)"
-    t_serv = Table([[Paragraph(serv_html, normal_style)]], colWidths=[540])
-    t_serv.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_serv)
-    
-    if se.get('visita'):
-        tv = se.get('tipo_visita', [])
-        rt_c = "[X]" if "Relacionamento Técnica" in tv else "[  ]"
-        tp_c = "[X]" if "Técnica Preventiva" in tv else "[  ]"
-        story.append(Spacer(1, 3))
-        story.append(Paragraph(f"&nbsp;&nbsp;<b>Tipo de Visita:</b> &nbsp; {rt_c} Relacionamento Técnica &nbsp;&nbsp;&nbsp;&nbsp; {tp_c} Técnica Preventiva", normal_style))
-        
-    story.append(Spacer(1, 4))
-    t_obs_serv = Table([[Paragraph(f"<b>Observações:</b><br/>{se.get('observacoes', 'Nenhuma observação.')}", normal_style)]], colWidths=[540])
-    t_obs_serv.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_obs_serv)
-    
-    # Resultado do Atendimento
-    ra = dados.get("resultado_atendimento", {})
-    story.append(Paragraph("Resultado do Atendimento", section_style))
-    r1, r2, r3, r4, r5, r6 = ("[X]" if ra.get(k) else "[  ]" for k in ['perfeito_funcionamento', 'pendencias_posterior', 'treinamento_sucesso', 'pendencias_operador', 'cartoes', 'outros'])
-    res_html = f"<b>{r1}</b> O Sistema ficou em perfeito funcionamento, sem nenhuma pendência<br/><b>{r2}</b> Existem pendências para solução posterior (listar em observações)<br/><b>{r3}</b> Treinamento efetuado com sucesso<br/><b>{r4}</b> Existem pendências para que o operador/chefe do setor solucione depois<br/><b>{r5}</b> Existem cartões (listar em observações)<br/><b>{r6}</b> Outros (inserir abaixo)"
-    t_res = Table([[Paragraph(res_html, normal_style)]], colWidths=[540])
-    t_res.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_res)
-    
-    story.append(Spacer(1, 4))
-    t_obs_res = Table([[Paragraph(f"<b>Observações:</b><br/>{ra.get('observacoes', 'Nenhuma observação.')}", normal_style)]], colWidths=[540])
-    t_obs_res.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_obs_res)
-    
-    # Área do Cliente
-    ac = dados.get("area_cliente", {})
-    story.append(Paragraph("Área do Cliente", section_style))
-    
-    sig_u_data = ac.get("assinatura_usuario")
-    if sig_u_data:
-        try:
-            sig_u_bytes = base64.b64decode(sig_u_data) if isinstance(sig_u_data, str) else sig_u_data
-            sig_u = RLImage(io.BytesIO(sig_u_bytes), width=130, height=45)
-        except Exception:
-            sig_u = Paragraph("<i>(Indisponível)</i>", normal_style)
-    else:
-        sig_u = Paragraph("<i>(Sem assinatura)</i>", normal_style)
 
-    sig_c_data = ac.get("assinatura_coordenador")
-    if sig_c_data:
-        try:
-            sig_c_bytes = base64.b64decode(sig_c_data) if isinstance(sig_c_data, str) else sig_c_data
-            sig_c = RLImage(io.BytesIO(sig_c_bytes), width=130, height=45)
-        except Exception:
-            sig_c = Paragraph("<i>(Indisponível)</i>", normal_style)
-    else:
-        sig_c = Paragraph("<i>(Sem assinatura)</i>", normal_style)
-    
-    cliente_data = [
-        [Paragraph(f"<b>Local:</b> {ac.get('local', '')}", normal_style), Paragraph(f"<b>Data do término do serviço:</b> {ac.get('data_termino', '')}", normal_style)],
-        [Paragraph(f"<b>Nome do Usuário:</b> {ac.get('nome_usuario', '')}", normal_style), Paragraph(f"<b>Nome do Coordenador do setor:</b> {ac.get('nome_coordenador', '')}", normal_style)],
-        [Paragraph(f"<b>WhatsApp do Usuário:</b> {ac.get('whatsapp_usuario', '')}", normal_style), Paragraph(f"<b>WhatsApp do Coordenador do setor:</b> {ac.get('whatsapp_coordenador', '')}", normal_style)],
-        [Paragraph("<b>Assinatura do Usuário:</b>", normal_style), Paragraph("<b>Assinatura do Coordenador do setor:</b>", normal_style)],
-        [sig_u, sig_c]
+    header = Table([[logo_pdf, header_text]], colWidths=[190, 350])
+    header.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("LINEBELOW", (0, 0), (-1, -1), 1.1, navy),
+    ]))
+    story.append(header)
+    story.append(Spacer(1, 9))
+
+    # Metadados de leitura rápida
+    meta_cells = [
+        campo("Relatório", report_id),
+        campo("Data da visita", ig.get("data_visita", "")),
+        campo("Sistema", ig.get("sistema", "")),
+        campo("Responsável", ig.get("responsavel_atendimento", "")),
     ]
-    t_cli = Table(cliente_data, colWidths=[270, 270])
-    t_cli.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg_light), ('BOX', (0,0), (-1,-1), 0.8, border_color), ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8)]))
-    story.append(t_cli)
-    
-    # Anexos Fotográficos
-    anexos = dados.get("anexos", [])
+    meta_table = Table([meta_cells], colWidths=[135, 135, 135, 135])
+    meta_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), blue_soft),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#BFDBFE")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#DBEAFE")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(meta_table)
+
+    # Informações gerais
+    story.append(section_header("Informações Gerais"))
+    info_rows = [
+        [campo("Entidade", ig.get("entidade", "")), campo("Sistema", ig.get("sistema", ""))],
+        [campo("Setor", ig.get("setor", "")), campo("Data da visita", ig.get("data_visita", ""))],
+        [campo("Nome do usuário", ig.get("nome_usuario", "")), campo("WhatsApp", ig.get("whatsapp", ""))],
+        [campo("E-mail", ig.get("email", "")), campo("Responsável pelo atendimento", ig.get("responsavel_atendimento", ""))],
+        [campo("Período", ig.get("periodo_atendimento", "")), campo("Turno", {"M": "Manhã", "T": "Tarde", "N": "Noite"}.get(ig.get("turno"), ig.get("turno", "")))]
+    ]
+    story.append(tabela_campos(info_rows))
+    story.append(Spacer(1, 5))
+    story.append(box_texto("Descrição do atendimento", ig.get("descricao", "")))
+
+    # Serviço executado
+    story.append(section_header("Registro do Serviço Executado"))
+    story.append(checklist([
+        (se.get("implantacao"), "Implantação"),
+        (se.get("treinamento"), "Treinamento"),
+        (se.get("demonstracao_sistema"), "Demonstração de Sistema"),
+        (se.get("visita"), "Visita"),
+        (se.get("outros"), "Outros")
+    ]))
+
+    if se.get("visita"):
+        tipos = se.get("tipo_visita", [])
+        story.append(Spacer(1, 3))
+        story.append(checklist([
+            ("Relacionamento Técnica" in tipos, "Relacionamento Técnica"),
+            ("Técnica Preventiva" in tipos, "Técnica Preventiva")
+        ]))
+
+    story.append(Spacer(1, 4))
+    story.append(box_texto("Observações sobre o serviço", se.get("observacoes", "")))
+
+    # Resultado
+    story.append(section_header("Resultado do Atendimento"))
+    story.append(checklist([
+        (ra.get("perfeito_funcionamento"), "O sistema ficou em perfeito funcionamento, sem nenhuma pendência"),
+        (ra.get("pendencias_posterior"), "Existem pendências para solução posterior"),
+        (ra.get("treinamento_sucesso"), "Treinamento efetuado com sucesso"),
+        (ra.get("pendencias_operador"), "Existem pendências para que o operador/chefe do setor solucione depois"),
+        (ra.get("cartoes"), "Existem cartões"),
+        (ra.get("outros"), "Outros")
+    ]))
+    story.append(Spacer(1, 4))
+    story.append(box_texto("Observações do resultado", ra.get("observacoes", "")))
+
+    # Área do cliente
+    story.append(section_header("Área do Cliente"))
+    cliente_rows = [
+        [campo("Local", ac.get("local", "")), campo("Data do término", ac.get("data_termino", ""))],
+        [campo("Nome do usuário", ac.get("nome_usuario", "")), campo("Coordenador do setor", ac.get("nome_coordenador", ""))],
+        [campo("WhatsApp do usuário", ac.get("whatsapp_usuario", "")), campo("WhatsApp do coordenador", ac.get("whatsapp_coordenador", ""))]
+    ]
+    story.append(tabela_campos(cliente_rows))
+    story.append(Spacer(1, 10))
+
+    def assinatura_flowable(valor, nome, funcao):
+        elementos = [Spacer(1, 4)]
+        if valor:
+            try:
+                sig_bytes = base64.b64decode(valor) if isinstance(valor, str) else valor
+                elementos.append(RLImage(io.BytesIO(sig_bytes), width=140, height=48, kind="proportional"))
+            except Exception:
+                elementos.append(Paragraph("<i>Assinatura indisponível</i>", caption_style))
+        else:
+            elementos.append(Spacer(1, 48))
+
+        elementos.extend([
+            Spacer(1, 4),
+            Table([[""]], colWidths=[210], rowHeights=[1], style=TableStyle([
+                ("LINEABOVE", (0, 0), (-1, -1), 0.7, border_strong)
+            ])),
+            Paragraph(esc(nome, "Nome não informado"), signature_name_style),
+            Paragraph(esc(funcao), signature_role_style)
+        ])
+        return elementos
+
+    ass_table = Table(
+        [[
+            assinatura_flowable(ac.get("assinatura_usuario"), ac.get("nome_usuario"), "Usuário / responsável local"),
+            assinatura_flowable(ac.get("assinatura_coordenador"), ac.get("nome_coordenador"), "Coordenador do setor")
+        ]],
+        colWidths=[270, 270]
+    )
+    ass_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(KeepTogether(ass_table))
+
+    # Evidências em grade
     if anexos:
-        story.append(Spacer(1, 8))
-        story.append(Paragraph("Evidências Fotográficas", section_style))
+        story.append(section_header("Evidências Fotográficas"))
+
+        cards = []
         for idx, item in enumerate(anexos):
             try:
                 foto_val = item.get("foto")
                 foto_bytes = base64.b64decode(foto_val) if isinstance(foto_val, str) else foto_val
-                legenda = item.get("legenda", f"Evidência {idx+1}")
                 img_pil = Image.open(io.BytesIO(foto_bytes)).convert("RGB")
-                max_width, max_height = 500, 300
-                ratio = min(max_width / img_pil.width, max_height / img_pil.height, 1)
+
+                max_w, max_h = 238, 155
+                ratio = min(max_w / img_pil.width, max_h / img_pil.height, 1)
                 img_w = img_pil.width * ratio
                 img_h = img_pil.height * ratio
-                rl_img = RLImage(io.BytesIO(foto_bytes), width=img_w, height=img_h)
-                bloco_evidencia = [
-                    Spacer(1, 4),
-                    Paragraph(f"<b>Evidência {idx+1}:</b> {legenda or 'Sem legenda'}", normal_style),
-                    Spacer(1, 3),
-                    rl_img
-                ]
-                story.append(KeepTogether(bloco_evidencia))
-            except Exception as exc:
-                story.append(Paragraph(f"<i>Evidência {idx+1}: não foi possível inserir a imagem no PDF.</i>", normal_style))
 
-    def decorar_pagina(canvas, doc_obj):
-        canvas.saveState()
-        largura, _ = letter
-        canvas.setStrokeColor(border_color)
-        canvas.setLineWidth(0.5)
-        canvas.line(36, 27, largura - 36, 27)
-        canvas.setFont("Helvetica", 7.5)
-        canvas.setFillColor(text_muted)
-        canvas.drawString(36, 15, f"Grupo S&S • {report_id} • Gerado em {agora_str}")
-        canvas.drawRightString(largura - 36, 15, f"Página {canvas.getPageNumber()}")
-        canvas.restoreState()
+                img = RLImage(io.BytesIO(foto_bytes), width=img_w, height=img_h)
+                legenda = item.get("legenda") or "Sem legenda"
 
-    doc.build(story, onFirstPage=decorar_pagina, onLaterPages=decorar_pagina)
+                card = Table(
+                    [[img], [Paragraph(f"<b>Evidência {idx + 1}</b><br/>{esc(legenda)}", caption_style)]],
+                    colWidths=[252]
+                )
+                card.setStyle(TableStyle([
+                    ("BOX", (0, 0), (-1, -1), 0.6, border),
+                    ("BACKGROUND", (0, 0), (-1, -1), white),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (0, 0), 7),
+                    ("BOTTOMPADDING", (0, 0), (0, 0), 6),
+                    ("TOPPADDING", (0, 1), (0, 1), 6),
+                    ("BOTTOMPADDING", (0, 1), (0, 1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]))
+                cards.append(card)
+            except Exception:
+                cards.append(
+                    Table([[Paragraph(f"Evidência {idx + 1}: imagem indisponível.", caption_style)]], colWidths=[252])
+                )
+
+        for i in range(0, len(cards), 2):
+            linha = cards[i:i+2]
+            if len(linha) == 1:
+                linha.append("")
+            grade = Table([linha], colWidths=[270, 270])
+            grade.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            story.append(KeepTogether(grade))
+
+    # Canvas customizado com "Página X de Y"
+    class NumberedCanvas(pdfcanvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            pdfcanvas.Canvas.__init__(self, *args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self._draw_footer(total)
+                pdfcanvas.Canvas.showPage(self)
+            pdfcanvas.Canvas.save(self)
+
+        def _draw_footer(self, total_pages):
+            largura, _ = letter
+            self.saveState()
+            self.setStrokeColor(border)
+            self.setLineWidth(0.45)
+            self.line(34, 31, largura - 34, 31)
+
+            self.setFont("Helvetica", 7)
+            self.setFillColor(muted)
+            self.drawString(34, 18, "Grupo S&S")
+            self.drawCentredString(largura / 2, 18, report_id)
+            self.drawRightString(largura - 34, 18, f"Página {self._pageNumber} de {total_pages}")
+
+            self.setFont("Helvetica", 6.5)
+            self.drawString(34, 9, f"Documento gerado eletronicamente em {agora_str}")
+            self.restoreState()
+
+    doc.build(story, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer.getvalue()
 
@@ -1011,14 +1701,25 @@ if tem_conteudo_para_rascunho(dados_atuais):
 
 if st.session_state.get("last_draft_save"):
     st.markdown(
-        f"<div style='text-align:right; color:#64748b; font-size:0.78rem;'>✓ Rascunho salvo automaticamente às {st.session_state['last_draft_save']}</div>",
+        f"<div style='text-align:right; color:#64748b; font-size:.78rem; margin-top:.45rem;'>"
+        f"✓ Alterações salvas automaticamente às {st.session_state['last_draft_save']}</div>",
         unsafe_allow_html=True
     )
 if st.session_state.get("last_draft_error"):
     st.warning(f"O preenchimento continua normalmente, mas o rascunho não pôde ser salvo: {st.session_state['last_draft_error']}")
 
-st.markdown("---")
-if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_width=True):
+st.markdown(
+    """
+    <div class="ss-finish-card">
+        <div class="ss-finish-title">Finalizar relatório</div>
+        <div class="ss-finish-sub">
+            O sistema validará os dados, salvará o histórico, criará o backup e emitirá o PDF oficial.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+if st.button("Validar, salvar e gerar PDF", type="primary", use_container_width=True):
     dados_val = modelo.to_dict()
     erros, avisos = validar_relatorio(dados_val)
 
@@ -1107,9 +1808,9 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
                 with col_dl:
                     nome_entidade = re.sub(r"[^A-Za-z0-9_-]+", "_", dados_val["informacoes_gerais"].get("entidade", "atendimento").strip()).strip("_") or "atendimento"
                     st.download_button(
-                        label="📥 Baixar PDF Oficial",
+                        label="Baixar PDF oficial",
                         data=pdf_bytes,
-                        file_name=f"{modelo.report_id}_{nome_entidade}.pdf",
+                        file_name=f"{modelo.report_id}_{nome_entidade}_{datetime.now().strftime('%d-%m-%Y')}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
@@ -1119,9 +1820,9 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
                         msg = f"Olá, {dados_val['informacoes_gerais'].get('nome_usuario')}. Segue o resumo do atendimento presencial realizado no Grupo S&S para a entidade {dados_val['informacoes_gerais'].get('entidade')}. Relatório {modelo.report_id}."
                         import urllib.parse
                         link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
-                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">💬 Enviar Resumo via WhatsApp</button></a>', unsafe_allow_html=True)
+                        st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">Enviar resumo via WhatsApp</button></a>', unsafe_allow_html=True)
 
-                st.markdown("### 👁️ Pré-visualização do Relatório Gerado")
+                st.markdown("### Pré-visualização do relatório")
                 base64_pdf = io.BytesIO(pdf_bytes)
                 base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
                 pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
@@ -1129,3 +1830,4 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
 
         except Exception as e:
             st.error(f"Erro ao processar relatório: {e}")
+
