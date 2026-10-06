@@ -17,7 +17,7 @@ from reportlab.lib import colors
 # 1. CONFIGURAÇÃO DA PÁGINA E ESTILO VISUAL MODERNO
 # ==========================================
 st.set_page_config(
-    page_title="Relatório de Atendimento Presencial — Grupo S&S",
+    page_title="Relatório de Atendimento Presencial",
     page_icon="📋",
     layout="wide"
 )
@@ -442,7 +442,7 @@ with col_logo:
         st.image(LOGO_BYTES, width=260)
 
 with col_title:
-    st.title("Grupo S&S — Relatório de Atendimento Presencial")
+    st.title("Relatório de Atendimento Presencial")
 
 st.markdown("Preencha os campos abaixo conforme o padrão oficial de atendimento em campo.")
 
