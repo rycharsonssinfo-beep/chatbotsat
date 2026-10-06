@@ -451,6 +451,29 @@ iframe {
         font-size: .80rem;
     }
 }
+
+/* ================= PACOTE VISUAL 3 ================= */
+[data-testid="stAppViewContainer"] > .main .block-container {max-width:1320px!important;margin:0 auto!important;padding-top:1.15rem!important;}
+.ss-hero{padding:18px 22px!important;border-radius:16px!important;box-shadow:0 6px 24px rgba(15,23,42,.045)!important;}
+.ss-hero-title{font-size:clamp(1.55rem,1.8vw,1.95rem)!important;}
+.ss-hero-subtitle{font-size:.86rem!important;margin-top:.3rem!important;}
+.ss-meta-row{margin-top:.65rem!important;gap:.4rem!important}.ss-pill{padding:.28rem .58rem!important;font-size:.73rem!important}
+.ss-progress-card{padding:11px 14px!important;border-radius:12px!important;box-shadow:none!important}
+.ss-progress-steps{display:flex;flex-wrap:wrap;gap:.55rem .9rem;margin-top:.65rem;font-size:.74rem;color:#64748B}
+.ss-step{display:inline-flex;align-items:center;gap:.34rem}.ss-step-dot{width:7px;height:7px;border-radius:999px;background:#CBD5E1;display:inline-block}.ss-step.done .ss-step-dot{background:#10B981}.ss-step.done{color:#334155;font-weight:650}
+.stTabs [data-baseweb="tab-list"]{background:transparent!important;border-bottom:1px solid #E2E8F0;border-radius:0!important;padding:0!important;gap:1rem!important}
+.stTabs [data-baseweb="tab"]{background:transparent!important;border-radius:0!important;height:42px!important;padding:0 2px!important;color:#64748B!important;box-shadow:none!important}
+.stTabs [aria-selected="true"]{color:#0F172A!important;border-bottom:2px solid #0F766E!important;box-shadow:none!important}
+.stButton>button[kind="primary"]{background:linear-gradient(135deg,#0F766E,#0E7490)!important;box-shadow:0 7px 18px rgba(15,118,110,.18)!important}
+.ss-pill-blue{color:#0F766E!important;background:#F0FDFA!important;border-color:#99F6E4!important}.ss-progress-fill{background:linear-gradient(90deg,#0F766E,#0E7490)!important}
+div[data-testid="stVerticalBlock"]>div[style*="border"]{border-radius:14px!important;box-shadow:none!important;border-color:#E7ECF2!important}
+.ss-group-title{color:#0F172A;font-size:.82rem;font-weight:750;margin-bottom:.15rem}.ss-group-sub{color:#64748B;font-size:.74rem;margin-bottom:.55rem}.ss-required{display:inline-block;margin-left:.35rem;padding:.12rem .38rem;border-radius:999px;background:#FEF2F2;color:#B91C1C;font-size:.63rem;font-weight:700;vertical-align:middle}
+.history-card{padding:10px 11px!important;border-radius:10px!important;margin:6px 0 5px 0!important;background:rgba(255,255,255,.045)!important}.history-card .hc-id{font-size:.67rem;color:#93C5FD;margin-bottom:.15rem}.history-card .hc-meta{color:#CBD5E1;font-size:.74rem;margin-top:.18rem}.history-card .hc-status{display:inline-block;margin-top:.38rem;padding:.16rem .42rem;border-radius:999px;background:rgba(16,185,129,.14);color:#A7F3D0;font-size:.66rem;font-weight:700}
+[data-testid="stFileUploader"]{background:#FBFDFE;border:1px dashed #B8C4D2;border-radius:14px;padding:8px 10px}[data-testid="stFileUploader"]:hover{border-color:#0F766E}
+.ss-sign-empty{border:1px dashed #CBD5E1;background:#FAFCFE;border-radius:12px;padding:1rem;text-align:center;color:#64748B;font-size:.78rem}
+.ss-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-top:.75rem}.ss-summary-item{background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:.62rem .7rem}.ss-summary-label{color:#64748B;font-size:.66rem;text-transform:uppercase;font-weight:750;letter-spacing:.04em}.ss-summary-value{color:#0F172A;font-size:.78rem;font-weight:700;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:980px){.ss-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.ss-summary-grid{grid-template-columns:1fr}.ss-progress-steps{gap:.45rem .6rem}.stTabs [data-baseweb="tab-list"]{overflow-x:auto!important;flex-wrap:nowrap!important}.stTabs [data-baseweb="tab"]{min-width:max-content!important}}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -824,7 +847,7 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
                             buf = io.BytesIO()
                             background.save(buf, format="PNG", optimize=True)
                             modelo_ref.area_cliente[campo_modelo] = buf.getvalue()
-                            st.success("Assinatura registrada.")
+                            st.toast("Assinatura registrada.", icon="✅")
                             st.rerun()
                         else:
                             st.warning("O quadro de assinatura está vazio.")
@@ -838,9 +861,11 @@ def capturar_assinatura(titulo: str, key_prefix: str, modelo_ref, campo_modelo: 
             )
             if uploaded_file is not None:
                 modelo_ref.area_cliente[campo_modelo] = uploaded_file.getvalue()
-                st.success("Assinatura carregada.")
+                st.toast("Assinatura carregada.", icon="✅")
 
         sig_val = modelo_ref.area_cliente.get(campo_modelo)
+        if not sig_val:
+            st.markdown('<div class="ss-sign-empty">Assinatura ainda não registrada.</div>', unsafe_allow_html=True)
         if sig_val:
             st.markdown('<div class="signature-badge">✓ Assinatura registrada</div>', unsafe_allow_html=True)
             try:
@@ -936,7 +961,7 @@ with st.sidebar:
         novo_sis_input = st.text_input("Nome do Sistema", placeholder="Ex.: Novo Sistema...")
         if st.button("Adicionar sistema", use_container_width=True):
             if adicionar_sistema_db(novo_sis_input):
-                st.success("Sistema adicionado.")
+                st.toast("Sistema adicionado.", icon="✅")
                 st.rerun()
             else:
                 st.warning("O sistema já existe ou o nome está vazio.")
@@ -968,14 +993,13 @@ with st.sidebar:
                 with st.container():
                     st.markdown(f"""
                     <div class="history-card">
-                        <b>{h_ent}</b><br>
-                        <small>{h_report_id or 'ID legado'}</small><br>
-                        🛠️ {h_sis or 'N/D'}<br>
-                        👤 {h_user} | 📅 {h_data}<br>
-                        <small>● {h_status or 'Finalizado'}</small>
+                        <div class="hc-id">{h_report_id or 'ID legado'}</div>
+                        <b>{h_ent}</b>
+                        <div class="hc-meta">{h_sis or 'Sistema não informado'} · {h_user or 'Usuário não informado'} · {h_data}</div>
+                        <span class="hc-status">{h_status or 'Finalizado'}</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    if st.button("Carregar", key=f"carregar_{h_id}", use_container_width=True):
+                    if st.button("Abrir relatório", key=f"carregar_{h_id}", use_container_width=True):
                         try:
                             dados_carregados = json.loads(h_json)
                             st.session_state["relatorio_model"] = modelo_from_dict(dados_carregados, h_report_id)
@@ -1068,11 +1092,16 @@ st.markdown(
     f"""
     <div class="ss-progress-card">
         <div class="ss-progress-head">
-            <span>Progresso do preenchimento</span>
+            <span>Progresso do relatório</span>
             <span>{estado_visual['concluidas']} de 5 etapas · {estado_visual['percentual']}%</span>
         </div>
-        <div class="ss-progress-track">
-            <div class="ss-progress-fill" style="width:{estado_visual['percentual']}%"></div>
+        <div class="ss-progress-track"><div class="ss-progress-fill" style="width:{estado_visual['percentual']}%"></div></div>
+        <div class="ss-progress-steps">
+            <span class="ss-step {'done' if estado_visual['info'] else ''}"><span class="ss-step-dot"></span>Informações</span>
+            <span class="ss-step {'done' if estado_visual['serv'] else ''}"><span class="ss-step-dot"></span>Serviços</span>
+            <span class="ss-step {'done' if estado_visual['result'] else ''}"><span class="ss-step-dot"></span>Resultados</span>
+            <span class="ss-step {'done' if estado_visual['cliente'] else ''}"><span class="ss-step-dot"></span>Cliente</span>
+            <span class="ss-step {'done' if estado_visual['evid'] else ''}"><span class="ss-step-dot"></span>Evidências</span>
         </div>
     </div>
     """,
@@ -1098,7 +1127,9 @@ with tab1:
         st.caption("Dados da entidade, usuário e contexto do atendimento.")
         col1, col2 = st.columns(2)
         with col1:
-            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade (Prefeitura / Câmara / Consórcio...)*", value=modelo.informacoes_gerais["entidade"])
+            st.markdown('<div class="ss-group-title">Entidade <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="ss-group-sub">Órgão ou entidade onde o atendimento foi realizado.</div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade", value=modelo.informacoes_gerais["entidade"], label_visibility="collapsed")
             
             lista_sistemas_atual = carregar_sistemas_db()
             sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
@@ -1106,18 +1137,22 @@ with tab1:
                 idx_sis = lista_sistemas_atual.index(sistema_atual)
             except ValueError:
                 idx_sis = 0
-            sistema_esc = st.selectbox("Sistema", lista_sistemas_atual, index=idx_sis)
+            st.markdown('<div class="ss-group-title">Sistema <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
+            sistema_esc = st.selectbox("Sistema", lista_sistemas_atual, index=idx_sis, label_visibility="collapsed")
             modelo.informacoes_gerais["sistema"] = "" if sistema_esc == "Selecione o sistema..." else sistema_esc
 
             modelo.informacoes_gerais["setor"] = st.text_input("Setor", value=modelo.informacoes_gerais["setor"])
-            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário*", value=modelo.informacoes_gerais["nome_usuario"])
+            st.markdown('<div class="ss-group-title">Usuário atendido <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["nome_usuario"] = st.text_input("Nome do Usuário", value=modelo.informacoes_gerais["nome_usuario"], label_visibility="collapsed")
             modelo.informacoes_gerais["email"] = st.text_input("E-mail", value=modelo.informacoes_gerais["email"])
         with col2:
             raw_wpp = st.text_input("WhatsApp", value=modelo.informacoes_gerais["whatsapp"])
             modelo.informacoes_gerais["whatsapp"] = limpar_telefone(raw_wpp)
 
             modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
-            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"])
+            st.markdown('<div class="ss-group-title">Responsável pelo atendimento <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="ss-group-sub">Profissional do Grupo S&S responsável pela visita.</div>', unsafe_allow_html=True)
+            modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"], label_visibility="collapsed")
             modelo.informacoes_gerais["periodo_atendimento"] = st.text_input("Período de Atendimento", value=modelo.informacoes_gerais["periodo_atendimento"])
             
             turno_map = {"M": 0, "T": 1, "N": 2}
@@ -1157,13 +1192,15 @@ with tab3:
     with st.container(border=True):
         st.markdown("### Resultado do Atendimento")
         st.caption("Registre como o atendimento foi concluído e eventuais pendências.")
-        modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("O Sistema ficou em perfeito funcionamento, sem nenhuma pendência", value=modelo.resultado_atendimento["perfeito_funcionamento"])
-        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Existem pendências para solução posterior (listar em observações)", value=modelo.resultado_atendimento["pendencias_posterior"])
-        modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento efetuado com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
+        modelo.resultado_atendimento["perfeito_funcionamento"] = st.checkbox("Perfeito funcionamento — sistema sem pendências ao final do atendimento", value=modelo.resultado_atendimento["perfeito_funcionamento"])
+        modelo.resultado_atendimento["pendencias_posterior"] = st.checkbox("Pendência posterior — existem ajustes a serem concluídos posteriormente", value=modelo.resultado_atendimento["pendencias_posterior"])
+        modelo.resultado_atendimento["treinamento_sucesso"] = st.checkbox("Treinamento concluído com sucesso", value=modelo.resultado_atendimento["treinamento_sucesso"])
         modelo.resultado_atendimento["pendencias_operador"] = st.checkbox("Existem pendências para que o operador/chefe do setor solucione depois", value=modelo.resultado_atendimento["pendencias_operador"])
         modelo.resultado_atendimento["cartoes"] = st.checkbox("Existem cartões (listar em observações)", value=modelo.resultado_atendimento["cartoes"])
         modelo.resultado_atendimento["outros"] = st.checkbox("Outros", value=modelo.resultado_atendimento["outros"])
         
+        if modelo.resultado_atendimento.get("pendencias_posterior") or modelo.resultado_atendimento.get("pendencias_operador") or modelo.resultado_atendimento.get("cartoes"):
+            st.caption("Descreva abaixo as pendências, cartões ou providências identificadas.")
         modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
 
 with tab4:
@@ -1242,6 +1279,8 @@ with tab5:
                         st.markdown(f'<div class="ss-evidence-title">Evidência {idx + 1}</div>', unsafe_allow_html=True)
                         st.image(item.get("foto"), width=300)
                         st.caption(item.get("legenda") or "Sem legenda")
+        else:
+            st.info("Nenhuma evidência adicionada. Você pode inserir imagens antes da geração do relatório.")
 
 
 # ==========================================
@@ -1273,8 +1312,8 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
 
     # Paleta institucional
     navy = colors.HexColor("#0F172A")
-    blue = colors.HexColor("#2563EB")
-    blue_soft = colors.HexColor("#EFF6FF")
+    blue = colors.HexColor("#0F766E")
+    blue_soft = colors.HexColor("#F0FDFA")
     border = colors.HexColor("#E2E8F0")
     border_strong = colors.HexColor("#CBD5E1")
     bg = colors.HexColor("#F8FAFC")
@@ -1480,8 +1519,8 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     meta_table = Table([meta_cells], colWidths=[135, 135, 135, 135])
     meta_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), blue_soft),
-        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#BFDBFE")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#DBEAFE")),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#99F6E4")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCFBF1")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("TOPPADDING", (0, 0), (-1, -1), 7),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
@@ -1489,6 +1528,27 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
     ]))
     story.append(meta_table)
+
+    # Resumo executivo
+    story.append(section_header("Resumo do Atendimento"))
+    servicos_selecionados = []
+    if se.get("implantacao"): servicos_selecionados.append("Implantação")
+    if se.get("treinamento"): servicos_selecionados.append("Treinamento")
+    if se.get("demonstracao_sistema"): servicos_selecionados.append("Demonstração")
+    if se.get("visita"): servicos_selecionados.append("Visita")
+    if se.get("outros"): servicos_selecionados.append("Outros")
+    tem_pendencia = any([ra.get("pendencias_posterior"), ra.get("pendencias_operador"), ra.get("cartoes")])
+    resumo_rows = [[campo("Entidade", ig.get("entidade", "")), campo("Serviço", ", ".join(servicos_selecionados) if servicos_selecionados else "Não informado")], [campo("Resultado", "Com pendências" if tem_pendencia else "Sem pendências registradas"), campo("Evidências", str(len(anexos)))]]
+    story.append(tabela_campos(resumo_rows))
+    story.append(Spacer(1, 5))
+    if tem_pendencia:
+        status_box = Table([[Paragraph("<b>Pendências identificadas</b><br/>" + esc(ra.get("observacoes", "Verificar observações do atendimento.")), value_style)]], colWidths=[540])
+        status_box.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#FFFBEB")),("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#FCD34D")),("TOPPADDING",(0,0),(-1,-1),8),("BOTTOMPADDING",(0,0),(-1,-1),8),("LEFTPADDING",(0,0),(-1,-1),9),("RIGHTPADDING",(0,0),(-1,-1),9)]))
+    else:
+        status_box = Table([[Paragraph("<b>Atendimento concluído sem pendências registradas.</b>", value_style)]], colWidths=[540])
+        status_box.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#ECFDF5")),("BOX",(0,0),(-1,-1),0.7,colors.HexColor("#A7F3D0")),("TOPPADDING",(0,0),(-1,-1),7),("BOTTOMPADDING",(0,0),(-1,-1),7),("LEFTPADDING",(0,0),(-1,-1),9),("RIGHTPADDING",(0,0),(-1,-1),9)]))
+    story.append(status_box)
+    story.append(Spacer(1, 6))
 
     # Informações gerais
     story.append(section_header("Informações Gerais"))
@@ -1568,6 +1628,12 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
         ])
         return elementos
 
+    local_ass = ac.get("local") or ig.get("entidade") or ""
+    data_ass = ac.get("data_termino") or ig.get("data_visita") or ""
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(f"{esc(local_ass)}, {esc(data_ass)}", subtitle_style))
+    story.append(Spacer(1, 4))
+
     ass_table = Table(
         [[
             assinatura_flowable(ac.get("assinatura_usuario"), ac.get("nome_usuario"), "Usuário / responsável local"),
@@ -1596,7 +1662,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
                 foto_bytes = base64.b64decode(foto_val) if isinstance(foto_val, str) else foto_val
                 img_pil = Image.open(io.BytesIO(foto_bytes)).convert("RGB")
 
-                max_w, max_h = 238, 155
+                max_w, max_h = 238, 165
                 ratio = min(max_w / img_pil.width, max_h / img_pil.height, 1)
                 img_w = img_pil.width * ratio
                 img_h = img_pil.height * ratio
@@ -1765,18 +1831,28 @@ if st.session_state.get("last_draft_save"):
 if st.session_state.get("last_draft_error"):
     st.warning(f"O preenchimento continua normalmente, mas o rascunho não pôde ser salvo: {st.session_state['last_draft_error']}")
 
+entidade_resumo = modelo.informacoes_gerais.get("entidade") or "Não informada"
+sistema_resumo = modelo.informacoes_gerais.get("sistema") or "Não informado"
+data_resumo = modelo.informacoes_gerais.get("data_visita")
+assinaturas_ok = sum([1 if modelo.area_cliente.get("assinatura_usuario") else 0, 1 if modelo.area_cliente.get("assinatura_coordenador") else 0])
+
 st.markdown(
-    """
+    f"""
     <div class="ss-finish-card">
-        <div class="ss-finish-title">Finalizar relatório</div>
-        <div class="ss-finish-sub">
-            O sistema validará os dados, salvará o histórico, criará o backup e emitirá o PDF oficial.
+        <div class="ss-finish-title">Pronto para finalizar</div>
+        <div class="ss-finish-sub">Revise o resumo. Ao gerar, os dados serão validados, salvos e o PDF oficial será emitido.</div>
+        <div class="ss-summary-grid">
+            <div class="ss-summary-item"><div class="ss-summary-label">Entidade</div><div class="ss-summary-value">{html.escape(str(entidade_resumo))}</div></div>
+            <div class="ss-summary-item"><div class="ss-summary-label">Sistema</div><div class="ss-summary-value">{html.escape(str(sistema_resumo))}</div></div>
+            <div class="ss-summary-item"><div class="ss-summary-label">Data</div><div class="ss-summary-value">{html.escape(str(data_resumo))}</div></div>
+            <div class="ss-summary-item"><div class="ss-summary-label">Evidências</div><div class="ss-summary-value">{len(modelo.anexos)}</div></div>
+            <div class="ss-summary-item"><div class="ss-summary-label">Assinaturas</div><div class="ss-summary-value">{assinaturas_ok}/2</div></div>
         </div>
     </div>
     """,
     unsafe_allow_html=True
 )
-if st.button("Validar, salvar e gerar PDF", type="primary", use_container_width=True):
+if st.button("Gerar relatório", type="primary", use_container_width=True):
     dados_val = modelo.to_dict()
     erros, avisos = validar_relatorio(dados_val)
 
@@ -1879,7 +1955,7 @@ if st.button("Validar, salvar e gerar PDF", type="primary", use_container_width=
                         link_wpp = f"https://wa.me/55{wpp_num}?text={urllib.parse.quote(msg)}"
                         st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25d366; color:white; border:none; border-radius:8px; padding:0.6rem 1.2rem; font-weight:600; width:100%; cursor:pointer;">Enviar resumo via WhatsApp</button></a>', unsafe_allow_html=True)
 
-                st.markdown("### Pré-visualização do relatório")
+                st.markdown("### Pré-visualização")
                 base64_pdf = io.BytesIO(pdf_bytes)
                 base64_encoded = base64.b64encode(base64_pdf.read()).decode('utf-8')
                 pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
