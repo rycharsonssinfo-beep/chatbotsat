@@ -720,6 +720,19 @@ def sincronizar_nome_usuario():
     st.session_state["ac_nome_usuario"] = nome
 
 
+def sincronizar_entidade_local():
+    """Replica a Entidade das Informações Gerais para o campo Local da Área do Cliente."""
+    entidade = st.session_state.get("ig_entidade", "")
+    st.session_state["ac_local"] = entidade
+
+
+def sincronizar_data_visita():
+    """Replica a Data da Visita para a Data do término do serviço."""
+    data_visita = st.session_state.get("ig_data_visita")
+    if data_visita:
+        st.session_state["ac_data_termino"] = data_visita
+
+
 def sincronizar_whatsapp_usuario():
     """Sanitiza e replica o WhatsApp das Informações Gerais para a Área do Cliente."""
     sanitizar_whatsapp_state("ig_whatsapp", "ac_whatsapp_usuario")
@@ -728,6 +741,8 @@ def sincronizar_whatsapp_usuario():
 def limpar_estado_widgets_relatorio():
     """Evita valores antigos dos widgets ao criar ou abrir outro relatório."""
     for chave in [
+        "ig_entidade",
+        "ig_data_visita",
         "ig_nome_usuario",
         "ig_whatsapp",
         "ac_nome_usuario",
@@ -1184,7 +1199,13 @@ with tab1:
         with col1:
             st.markdown('<div class="ss-group-title">Entidade <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
             st.markdown('<div class="ss-group-sub">Órgão ou entidade onde o atendimento foi realizado.</div>', unsafe_allow_html=True)
-            modelo.informacoes_gerais["entidade"] = st.text_input("Entidade", value=modelo.informacoes_gerais["entidade"], label_visibility="collapsed")
+            modelo.informacoes_gerais["entidade"] = st.text_input(
+                "Entidade",
+                value=modelo.informacoes_gerais["entidade"],
+                label_visibility="collapsed",
+                key="ig_entidade",
+                on_change=sincronizar_entidade_local
+            )
             
             lista_sistemas_atual = carregar_sistemas_db()
             sistema_atual = modelo.informacoes_gerais.get("sistema", "Selecione o sistema...")
@@ -1222,7 +1243,13 @@ with tab1:
             if raw_wpp and len(somente_digitos_whatsapp(raw_wpp)) < 11:
                 st.caption(f"{len(somente_digitos_whatsapp(raw_wpp))}/11 dígitos")
 
-            modelo.informacoes_gerais["data_visita"] = st.date_input("Data da Visita", value=modelo.informacoes_gerais["data_visita"], format="DD/MM/YYYY")
+            modelo.informacoes_gerais["data_visita"] = st.date_input(
+                "Data da Visita",
+                value=modelo.informacoes_gerais["data_visita"],
+                format="DD/MM/YYYY",
+                key="ig_data_visita",
+                on_change=sincronizar_data_visita
+            )
             st.markdown('<div class="ss-group-title">Responsável pelo atendimento <span class="ss-required">Obrigatório</span></div>', unsafe_allow_html=True)
             st.markdown('<div class="ss-group-sub">Profissional do Grupo S&S responsável pela visita.</div>', unsafe_allow_html=True)
             modelo.informacoes_gerais["responsavel_atendimento"] = st.text_input("Responsável pelo Atendimento", value=modelo.informacoes_gerais["responsavel_atendimento"], label_visibility="collapsed")
@@ -1277,8 +1304,11 @@ with tab3:
         modelo.resultado_atendimento["observacoes"] = st.text_area("Observações do Resultado", value=modelo.resultado_atendimento["observacoes"])
 
 with tab4:
-    # Mantém nome e WhatsApp do usuário alinhados com Informações Gerais
-    # quando ainda não houver estado próprio na Área do Cliente.
+    # Sincronização inicial das informações provenientes das Informações Gerais.
+    if "ac_local" not in st.session_state:
+        modelo.area_cliente["local"] = modelo.informacoes_gerais.get("entidade", "")
+    if "ac_data_termino" not in st.session_state:
+        modelo.area_cliente["data_termino"] = modelo.informacoes_gerais.get("data_visita", date.today())
     if "ac_nome_usuario" not in st.session_state:
         modelo.area_cliente["nome_usuario"] = modelo.informacoes_gerais.get("nome_usuario", "")
     if "ac_whatsapp_usuario" not in st.session_state:
@@ -1288,11 +1318,42 @@ with tab4:
 
     with st.container(border=True):
         st.markdown("### Área do Cliente")
-        st.caption("O nome e o WhatsApp do usuário são preenchidos automaticamente a partir das Informações Gerais.")
+        st.caption(
+            "Local, data, nome e WhatsApp são preenchidos automaticamente a partir das Informações Gerais, "
+            "mas podem ser ajustados antes da assinatura."
+        )
+
+        # ----------------------------------------------------
+        # Local e data acima dos blocos Usuário / Coordenador
+        # ----------------------------------------------------
+        st.markdown("#### Dados do atendimento")
+        top_local, top_data = st.columns(2)
+
+        with top_local:
+            modelo.area_cliente["local"] = st.text_input(
+                "Local",
+                value=modelo.area_cliente["local"] or modelo.informacoes_gerais.get("entidade", ""),
+                key="ac_local",
+                placeholder="Entidade / local do atendimento"
+            )
+
+        with top_data:
+            modelo.area_cliente["data_termino"] = st.date_input(
+                "Data do término do serviço",
+                value=modelo.area_cliente["data_termino"] or modelo.informacoes_gerais.get("data_visita", date.today()),
+                format="DD/MM/YYYY",
+                key="ac_data_termino"
+            )
+
+        st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
+
+        # ----------------------------------------------------
+        # Usuário e Coordenador abaixo
+        # ----------------------------------------------------
         col_c1, col_c2 = st.columns(2)
+
         with col_c1:
             st.markdown("#### Usuário")
-            modelo.area_cliente["local"] = st.text_input("Local (Ex: Jaguaribe-ce)", value=modelo.area_cliente["local"], key="ac_local")
             modelo.area_cliente["nome_usuario"] = st.text_input(
                 "Nome do Usuário",
                 value=modelo.area_cliente["nome_usuario"] or modelo.informacoes_gerais.get("nome_usuario", ""),
@@ -1312,10 +1373,14 @@ with tab4:
             )
             modelo.area_cliente["whatsapp_usuario"] = somente_digitos_whatsapp(raw_wpp_u)
             capturar_assinatura("Assinatura do Usuário", "usuario", modelo, "assinatura_usuario")
+
         with col_c2:
             st.markdown("#### Coordenador do Setor")
-            modelo.area_cliente["data_termino"] = st.date_input("Data do término do serviço", value=modelo.area_cliente["data_termino"], format="DD/MM/YYYY", key="ac_data_termino")
-            modelo.area_cliente["nome_coordenador"] = st.text_input("Nome do Coordenador do setor", value=modelo.area_cliente["nome_coordenador"], key="ac_nome_coordenador")
+            modelo.area_cliente["nome_coordenador"] = st.text_input(
+                "Nome do Coordenador do setor",
+                value=modelo.area_cliente["nome_coordenador"],
+                key="ac_nome_coordenador"
+            )
             raw_wpp_c = st.text_input(
                 "WhatsApp do Coordenador do setor",
                 value=somente_digitos_whatsapp(modelo.area_cliente["whatsapp_coordenador"]),
@@ -1328,6 +1393,7 @@ with tab4:
             )
             modelo.area_cliente["whatsapp_coordenador"] = somente_digitos_whatsapp(raw_wpp_c)
             capturar_assinatura("Assinatura Coordenador", "coordenador", modelo, "assinatura_coordenador")
+
 
 with tab5:
     with st.container(border=True):
