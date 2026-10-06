@@ -117,6 +117,56 @@ html, body, [class*="css"] {
     border-radius: 12px;
 }
 
+/* Botões da sidebar — contraste reforçado */
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stDownloadButton > button {
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    border: 1px solid #D8E0EB !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stSidebar"] .stButton > button p,
+[data-testid="stSidebar"] .stDownloadButton > button p,
+[data-testid="stSidebar"] .stButton > button span,
+[data-testid="stSidebar"] .stDownloadButton > button span {
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover,
+[data-testid="stSidebar"] .stDownloadButton > button:hover {
+    background: #F8FAFC !important;
+    color: #0F172A !important;
+    border-color: #94A3B8 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover p,
+[data-testid="stSidebar"] .stButton > button:hover span,
+[data-testid="stSidebar"] .stDownloadButton > button:hover p,
+[data-testid="stSidebar"] .stDownloadButton > button:hover span {
+    color: #0F172A !important;
+}
+
+/* Estado desabilitado: ainda legível */
+[data-testid="stSidebar"] .stButton > button:disabled,
+[data-testid="stSidebar"] .stDownloadButton > button:disabled {
+    background: #E2E8F0 !important;
+    color: #475569 !important;
+    border-color: #CBD5E1 !important;
+    opacity: 1 !important;
+    cursor: not-allowed;
+}
+
+[data-testid="stSidebar"] .stButton > button:disabled p,
+[data-testid="stSidebar"] .stButton > button:disabled span,
+[data-testid="stSidebar"] .stDownloadButton > button:disabled p,
+[data-testid="stSidebar"] .stDownloadButton > button:disabled span {
+    color: #475569 !important;
+    opacity: 1 !important;
+}
+
 /* Cabeçalho */
 .ss-hero {
     background: linear-gradient(135deg, #FFFFFF 0%, #FBFDFF 70%, #F3F7FF 100%);
