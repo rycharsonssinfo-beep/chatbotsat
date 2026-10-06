@@ -439,7 +439,7 @@ with st.sidebar:
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
     if LOGO_BYTES:
-        st.image(LOGO_BYTES, width=130)
+        st.image(LOGO_BYTES, width=260)
 
 with col_title:
     st.title("Grupo S&S — Relatório de Atendimento Presencial")
@@ -585,12 +585,12 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], fontSize=8, textColor=text_muted, spaceBefore=15, alignment=1)
 
     if LOGO_BYTES:
-        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=3.2*72/25.4, height=1.0*72/25.4, kind='proportional')
+        logo_pdf = RLImage(io.BytesIO(LOGO_BYTES), width=180, height=47, kind='proportional')
     else:
         logo_pdf = Paragraph("<b>GRUPO S&S</b>", title_style)
 
     titulo_cabecalho = Paragraph("<b>RELATÓRIO DE ATENDIMENTO PRESENCIAL</b>", title_style)
-    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[110, 430])
+    tabela_cabecalho = Table([[logo_pdf, titulo_cabecalho]], colWidths=[200, 340])
     tabela_cabecalho.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 6),
