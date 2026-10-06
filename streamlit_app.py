@@ -5,7 +5,7 @@ import base64
 import sqlite3
 from datetime import datetime, date
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from streamlit_drawable_canvas import st_canvas
 import urllib.request
 
@@ -96,7 +96,7 @@ st.markdown("""
 
 
 # ==========================================
-# 2. CARREGAMENTO DA LOGOTIPO OFICIAL
+# 2. CARREGAMENTO OU GERAÇÃO DA LOGOTIPO
 # ==========================================
 @st.cache_data
 def obter_logo_bytes() -> bytes:
@@ -104,13 +104,19 @@ def obter_logo_bytes() -> bytes:
         url = "https://www.ssinformatica.net/wp-content/uploads/2023/03/Grupo-SS.png"
         req = urllib.request.Request(
             url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         )
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=4) as response:
             return response.read()
-    except Exception as e:
-        st.error(f"Erro ao carregar a logo oficial: {e}")
-        return b""
+    except Exception:
+        # Fallback profissional gerado por imagem se houver bloqueio 403/timeout
+        img = Image.new("RGB", (300, 100), color="#0d1527")
+        d = ImageDraw.Draw(img)
+        d.rectangle([5, 5, 295, 95], outline="#1b5ef7", width=2)
+        d.text((25, 35), "GRUPO S&S", fill="#ffffff")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
 
 LOGO_BYTES = obter_logo_bytes()
 
@@ -441,7 +447,7 @@ with st.sidebar:
         st.markdown("<small style='color: #94a3b8;'>Banco de dados vazio.</small>", unsafe_allow_html=True)
 
 
-# Cabeçalho Principal com a Logotipo Oficial Exata
+# Cabeçalho Principal com a Logotipo Oficial Tratada
 col_logo, col_title = st.columns([1, 5])
 with col_logo:
     if LOGO_BYTES:
@@ -783,7 +789,5 @@ if st.button("🚀 Validar, Salvar e Gerar PDF", type="primary", use_container_w
             pdf_display = f'<iframe src="data:application/pdf;base64,{base64_encoded}" width="100%" height="600px" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"Erro ao processar relatório: {e}")
         except Exception as e:
             st.error(f"Erro ao processar relatório: {e}")
