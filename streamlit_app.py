@@ -1460,11 +1460,20 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
     def checklist(itens):
         rows = []
         for marcado, texto_item in itens:
-            mark = Paragraph("<b>X</b>" if marcado else "", normal_style)
-            box = Table([[mark]], colWidths=[14], rowHeights=[14])
+            # O marcador usa texto direto na célula, em vez de Paragraph.
+            # Isso evita o deslocamento vertical causado pela linha-base/leading
+            # do Paragraph e mantém o "X" geometricamente centralizado.
+            box = Table(
+                [["X" if marcado else ""]],
+                colWidths=[15],
+                rowHeights=[15]
+            )
             box.setStyle(TableStyle([
                 ("BOX", (0, 0), (-1, -1), 0.8, blue if marcado else border_strong),
                 ("BACKGROUND", (0, 0), (-1, -1), blue_soft if marcado else white),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("TEXTCOLOR", (0, 0), (-1, -1), navy if marcado else muted),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -1474,7 +1483,7 @@ def gerar_pdf_relatorio(dados: dict) -> bytes:
             ]))
             rows.append([box, Paragraph(esc(texto_item), value_style)])
 
-        t = Table(rows, colWidths=[24, 516])
+        t = Table(rows, colWidths=[25, 515])
         t.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
